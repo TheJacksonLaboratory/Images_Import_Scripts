@@ -1,0 +1,26 @@
+appdirs==1.4.4
+Bottleneck @ file:///private/var/folders/sy/f16zz6x50xz3113nwtb9bvq00000gp/T/abs_29949159-f86f-474b-bc1f-aaa1e0e222b4ofusifik/croots/recipe/bottleneck_1657175564045/work
+certifi==2023.5.7
+charset-normalizer==3.2.0
+et-xmlfile==1.1.0
+ezomero==2.0.0
+future==0.18.3
+idna==3.4
+mkl-fft==1.3.6
+mkl-random @ file:///Users/ec2-user/mkl/mkl_random_1682994911338/work
+mkl-service==2.4.0
+mysql-connector==2.2.9
+numexpr @ file:///private/var/folders/sy/f16zz6x50xz3113nwtb9bvq00000gp/T/abs_1b50c1js9s/croot/numexpr_1683227065029/work
+numpy @ file:///private/var/folders/sy/f16zz6x50xz3113nwtb9bvq00000gp/T/abs_facv4mnp7u/croot/numpy_and_numpy_base_1687466217056/work
+omero-py==5.13.1
+openpyxl==3.1.2
+pandas==1.5.3
+Pillow==10.0.0
+python-dateutil @ file:///tmp/build/80754af9/python-dateutil_1626374649649/work
+pytz @ file:///private/var/folders/sy/f16zz6x50xz3113nwtb9bvq00000gp/T/abs_ddzpsmm2_f/croot/pytz_1671697430473/work
+PyYAML==6.0.1
+requests==2.31.0
+six @ file:///tmp/build/80754af9/six_1644875935023/work
+urllib3==2.0.4
+watchdog==3.0.0
+zeroc-ice @ file:///usr/local/miniconda/conda-bld/zeroc-ice36-python_1606217156867/work
