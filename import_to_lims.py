@@ -260,8 +260,8 @@ if __name__ == "__main__":
     db_password = cfg['database']['password']
 
     #Setup credentials of omero
-    omero_username = cfg['user']
-    omero_password = cfg['password']
+    omero_username = cfg['user']['username']
+    omero_password = cfg['user']['password']
 
     # Setup logger
     def createLogHandler(log_file):
@@ -275,7 +275,7 @@ if __name__ == "__main__":
 
 
     job_name = 'Import_Images_To_Lims'
-    logging_dest = os.path.join(os.getcwd(), "logs")
+    logging_dest = cfg['app']['log_path2']
     date = datetime.now().strftime("%B-%d-%Y")
     logging_filename = logging_dest + "/" + f'{date}.log'
     logger = createLogHandler(logging_filename)

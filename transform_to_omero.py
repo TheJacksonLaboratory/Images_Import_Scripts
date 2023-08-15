@@ -2,11 +2,9 @@ import argparse
 import errno
 import logging
 import os
-import re
 import shutil
 import sys
 from datetime import datetime
-import yaml
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers.polling import PollingObserver
 import mysql.connector

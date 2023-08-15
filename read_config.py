@@ -59,7 +59,7 @@ def parse_config(path=None, data=None, tag='!ENV'):
     else:
         raise ValueError('Either a path or data should be defined as input')
 
-
+'''
 parser = argparse.ArgumentParser(description='My awesome script')
 parser.add_argument(
     "-c", "--conf", action="store", dest="conf_file",
@@ -70,3 +70,4 @@ args = parser.parse_args()
 config = parse_config(path="config.yml")
 
 print(config)
+'''

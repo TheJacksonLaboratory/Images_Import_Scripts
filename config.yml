@@ -5,7 +5,7 @@ database:
  host: rslims.jax.org
 
 user:
-  user: chent
+  username: chent
   password: Ql4nc,tzjzsblj!
 
 app:
