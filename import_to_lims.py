@@ -1,3 +1,4 @@
+import argparse
 import logging
 import os
 import sys
@@ -5,11 +6,10 @@ from datetime import datetime
 import mysql.connector as mysql
 import pandas as pd
 import ezomero
-import utils
 import time
-import shutil
-from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+from watchdog.observers.polling import PollingObserver
+import read_config as cfg
 
 """
 1. Monitor the drop-box for log file, parse the log message if detected
@@ -19,14 +19,10 @@ from watchdog.events import FileSystemEventHandler
 3. Query the db for filename and testcode, use the filename to generate omero url
 4. Create a csv file using omero url and testcode
 
-TODO 08/08/2023
+TODO 08/09/2023
 1. Test the app in the production enviornment
+2. Figure out way to activate conda venv
 """
-
-
-testfiles = ['fundus2_A-12625_OS1 08-41-46.059 06-07-23-1.tif',
-            'fundus2_A-12625_OS 08-41-08.447 06-07-23-1.tif',
-            'fundus2_A-12651_OD 10-34-27.137 06-07-23-1.tif']
 
 
 class MonitorFolder(FileSystemEventHandler):
@@ -42,7 +38,7 @@ class MonitorFolder(FileSystemEventHandler):
 
             success_imported_files = []
 
-            #Parse the log file
+            # Parse the newly generated log file
             with open(file_added, "r") as f:
                 lines = f.readlines()
                 for line in lines:
@@ -50,42 +46,37 @@ class MonitorFolder(FileSystemEventHandler):
                         line_split = line.split(" ")
                         filename = line_split[3] + " " + line_split[4] + " " + line_split[5]
                         success_imported_files.append(filename)
-                        
+
                         '''
                         update_status(filename=image.name,
                                       status=image.status,
                                       message=line)
                         '''
-                        
-            imported_images = Imported_Images(images=success_imported_files, status="Success")
-            test_name = imported_images.get_test_name()
-            test_code = imported_images.get_test_code()
-            image_urls = imported_images.get_omero_urls()
-            IMG_INFO = pd.concat([image_urls, test_code], axis=1).rename_axis(None)
 
-            #Generate .csv file in the corresponding folder
-            csv_file_name = os.path.splitext(file_added.split("/")[-1])
-            logger.info(csv_file_name)
-            try:
-                if test_name == "Eye Morphology":
-                    target = "Z:/EYE-MORPHOLOGY/KOMP/images-omero"
-                    IMG_INFO.to_csv(f"{target}/{csv_file_name}.csv")
+                imported_images = Imported_Images(images=success_imported_files, status="Success")
+                test_name = imported_images.get_test_name()
+                test_code = imported_images.get_test_code()
+                image_urls = imported_images.get_omero_urls()
+                IMG_INFO = pd.concat([image_urls, test_code], axis=1).rename_axis(None)
 
-                if test_name == "Gross Pathology":
-                    target = "Z:/GrossPathology/KOMP/images-omero"
-                    IMG_INFO.to_csv(f"{target}/{csv_file_name}.csv")
+                # Generate .csv file in the corresponding folder
+                csv_file_name = file_added.split("\\")[-1].replace(".", "-")
+                logger.info(csv_file_name)
+                try:
+                    if test_name == "Eye Morphology":
+                        target = r"\\jax.org\jax\phenotype\EYE-MORPHOLOGY\KOMP\images-omero"
+                        IMG_INFO.to_csv(f"{target}/{csv_file_name}.csv")
 
-                if test_name == "ERG":
-                    target = "Z:/ERG-V2/KOMP/images-omero"
-                    IMG_INFO.to_csv(f"{target}/{csv_file_name}.csv")
+                    if test_name == "Gross Pathology":
+                        target = r"\\jax.org\jax\phenotype\GrossPathology\KOMP\images-omero"
+                        IMG_INFO.to_csv(f"{target}/{csv_file_name}.csv")
 
-                else:
-                    logger.error(f"Invalid test found: {test_name}")
+                    if test_name == "ERG":
+                        target = r"\\jax.org\jax\phenotype\ERG-V2\KOMP\images-omero"
+                        IMG_INFO.to_csv(f"{target}/{csv_file_name}.csv")
 
-            except Exception as err:
-                logger.error(err)
-
-            #IMG_INFO.to_csv(f"/Users/chent/Desktop/KOMP_Project/OMERO_TO_LIMS/KOMP-Import/{csv_file_name}.csv")
+                except Exception as err:
+                    logger.error(err)
 
     def on_modified(self, event):
         print(event.src_path, event.event_type)
@@ -100,27 +91,14 @@ class MonitorFolder(FileSystemEventHandler):
         logger.info(event.src_path + " " + event.event_type)
 
 
-class Imported_Images():
-    
-    TEST = {
-        "fundus2": "Eye Morphology",
-        "path": "Gross Pathology",
-        "fundus": "ERG"
-    }
-
-
-    procedureDefVersionKey = {
-        "Gross Pathology": 230,
-        "Eye Morphology": 231,
-        "ERG": 254
-    }
-
+class Imported_Images:
+    TEST = cfg.parse_config("config.yml")['app']['TEST']
+    procedureDefVersionKey = cfg.parse_config("config.yml")['app']['procedureDefVersionKey']
 
     def __init__(self, images, status) -> None:
         self.images = images
         self.status = status
 
-    
     def get_omero_urls(self) -> pd.DataFrame:
         """
         Function to get omero urls
@@ -131,8 +109,8 @@ class Imported_Images():
         urls = []
         for file in self.images:
             base_url = "https://omeroweb.jax.org/webgateway/img_detail/"
-            conn_to_omero = ezomero.connect(user="chent",
-                                            password="Ql4nc,tzjzsblj!",
+            conn_to_omero = ezomero.connect(user=omero_username,
+                                            password=omero_password,
                                             host="ctomero01lp.jax.org",
                                             port=4064,
                                             group="KOMP_eye",
@@ -143,11 +121,11 @@ class Imported_Images():
             for data in datasets:
                 images_ids = ezomero.get_image_ids(conn_to_omero, dataset=data)
                 im_filter_ids = ezomero.filter_by_filename(conn_to_omero,
-                                                            images_ids,
-                                                            file,
-                                                            True)
-                
-                #logger.info(f"Image ids for {file} is {im_filter_ids}")
+                                                           images_ids,
+                                                           file,
+                                                           True)
+
+                # logger.info(f"Image ids for {file} is {im_filter_ids}")
 
                 for image_id in im_filter_ids:
                     url = base_url + str(image_id)
@@ -158,7 +136,6 @@ class Imported_Images():
         conn_to_omero.close()
         IMG_URL = pd.DataFrame(urls, columns=["Filename"])
         return IMG_URL
-    
 
     def get_test_code(self) -> pd.DataFrame:
 
@@ -186,7 +163,7 @@ class Imported_Images():
                         OrganismID = '{}';"""
 
         DB_RECORDS = []
-        
+
         for file in self.images:
             organism_id = file.split("_")[1]
             test = self.TEST[file.split("_")[0]]
@@ -207,40 +184,36 @@ class Imported_Images():
         print(TEST_CODE)
 
         return TEST_CODE
-    
 
     def get_test_name(self) -> str:
 
         img_types = []
         for file in self.images:
-            if "fundus2" in file:
+            test_of_img = file.split("_")[0]
+            logger.info(f"Fetching test for {test_of_img}")
+            if test_of_img == "fundus2":
                 type = self.TEST["fundus2"]
                 img_types.append(type)
 
-            if "fundus" in file:
+            if test_of_img == "fundus":
                 type = self.TEST["fundus"]
                 img_types.append(type)
 
-            if "path" in file:
+            if test_of_img == "path":
                 type = self.TEST["path"]
                 img_types.append(type)
 
-            else:
-                logger.error(f"{file} is not a komp file")
-                return
-            
         def all_same(items):
             return all(x == items[0] for x in items)
-        
-        assert all_same(img_types)
-        return img_types[0]
-        
 
-    
-def update_status(filename:str, 
-                  status: str, 
-                  message:str):
-    
+        assert all_same(img_types)
+        logger.debug(img_types)
+        return img_types[0]
+
+
+def update_status(filename: str,
+                  status: str,
+                  message: str):
     conn = mysql.connect(host=db_server, user=db_username, password=db_password, database="komp")
 
     def if_exist():
@@ -250,11 +223,11 @@ def update_status(filename:str,
         c.execute(query)
         count = c.fetchall()["COUNT"]
         if count > 0:
-            return utils.RECORD_EXIST
+            return 1
         else:
             return -1
 
-    if if_exist() == utils.RECORD_EXIST:
+    if if_exist() == 1:
         logger.info(f"{filename} is komp file")
         logger.info("Inserting.......")
         insert_stmt = f"""INSERT INTO komp.OMEROImportStatus (ImportStatus, Message) VALUES({status}, {message}) 
@@ -266,14 +239,53 @@ def update_status(filename:str,
 
     else:
         logger.warning(f"{filename} is not a komp file")
-        return 
+        return
 
 
-def main():
-    
-    src_path = "Y:/"
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='My awesome script')
+    parser.add_argument(
+        "-c", "--conf", action="store", dest="conf_file",
+        help="Path to config file"
+    )
+
+    args = parser.parse_args()
+    cfg = cfg.parse_config(path="config.yml")
+
+    # Setup credentials for database
+    db_server = cfg['database']['host']
+    db_name = cfg['database']['name']
+    db_username = cfg['database']['user']
+    db_password = cfg['database']['password']
+
+    #Setup credentials of omero
+    omero_username = cfg['user']
+    omero_password = cfg['password']
+
+    # Setup logger
+    def createLogHandler(log_file):
+        logger = logging.getLogger(__name__)
+        FORMAT = "[%(asctime)s->%(filename)s->%(funcName)s():%(lineno)s]%(levelname)s: %(message)s"
+        logging.basicConfig(format=FORMAT, filemode="w", level=logging.DEBUG, force=True)
+        handler = logging.FileHandler(log_file)
+        handler.setFormatter(logging.Formatter(FORMAT))
+        logger.addHandler(handler)
+        return logger
+
+
+    job_name = 'Import_Images_To_Lims'
+    logging_dest = os.path.join(os.getcwd(), "logs")
+    date = datetime.now().strftime("%B-%d-%Y")
+    logging_filename = logging_dest + "/" + f'{date}.log'
+    logger = createLogHandler(logging_filename)
+    logger.info('Logger has been created')
+
+    #Create file watcher
+    src_path = r"\\jax.org\jax\omero-drop\dropbox"
+    # src_path = os.getcwd()
     event_handler = MonitorFolder()
-    observer = Observer()
+    observer = PollingObserver()
     observer.schedule(event_handler, path=src_path, recursive=True)
     logger.info("Monitoring started")
     observer.start()
@@ -287,23 +299,3 @@ def main():
         observer.join()
         sys.exit()
 
-
-
-
-if __name__ == "__main__":
-
-    username = utils.db_username
-    password = utils.password
-
-    db_server = utils.db_server
-    db_username = utils.db_username
-    db_password = utils.db_password
-
-    job_name = 'OMERO_Import'
-    logging_dest = os.path.join(os.getcwd(), "logs")
-    date = datetime.now().strftime("%B-%d-%Y")
-    logging_filename = logging_dest + "/" + f'{date}.log'
-    logger = utils.createLogHandler(logging_filename)
-    logger.info('Logger has been created')
-    
-    main()

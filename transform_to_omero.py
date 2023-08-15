@@ -1,31 +1,42 @@
+import argparse
 import errno
 import logging
 import os
+import re
 import shutil
 import sys
 from datetime import datetime
-from watchdog.observers import Observer
+import yaml
 from watchdog.events import FileSystemEventHandler
+from watchdog.observers.polling import PollingObserver
 import mysql.connector
 import pandas as pd
 import time
 import openpyxl
+import read_config as cfg
 
 
 class MonitorFolder(FileSystemEventHandler):
 
     def on_created(self, event):
-        print(event.src_path, event.event_type)
-        logger.info(event.src_path + " " + event.event_type)
+        """
 
-        created_file = event.src_path
+        :param event:
+        :type event:
+        :return:
+        :rtype:
+        """
+        print(event.src_path, event.event_type)
+
+        created_file = event.src_path.replace("\\", "/")
+        logger.info(created_file + " " + event.event_type)
         image_metadata = []
         time.sleep(10)
         if os.path.isdir(created_file):
             IMG_INFO = GET_IMAGE_INFO(FILE_TO_BE_IMPORTED=created_file)
             image_metadata.append(IMG_INFO)
             generate_submission_form(IMG_INFO=IMG_INFO,
-                                     username=username,
+                                     wkgroup_owner=group_owner,
                                      wkgroup="KOMP_eye",
                                      filename=created_file.split("/")[-1] + ".xlsx",
                                      PARENT_DIR=created_file)
@@ -41,31 +52,53 @@ class MonitorFolder(FileSystemEventHandler):
                 Returns
                 -------
                 """
+                logger.info(f"Copying {src} to {dst}")
                 try:
                     shutil.copytree(src, dst)
                 except OSError as exc:
                     if exc.errno in (errno.ENOTDIR, errno.EINVAL):
                         shutil.copy(src, dst)
 
-            logger.debug(f"Drop folder {created_file} to OMERO Dropbox {TO}")
+            logger.debug(f"Drop folder {created_file} to OMERO Dropbox {dest}")
             copyanything(src=created_file,
-                         dst=TO + "/" + created_file.split("\\")[-1])
+                         dst=dest + "\\" + created_file.split("/")[-1])
 
             # send_message_on_slack()
-            insert_import_status_to_db(DIR_SENT_TO_DROPBOX=created_file)
+            # insert_import_status_to_db(DIR_SENT_TO_DROPBOX=created_file)
 
         else:
             pass
 
     def on_modified(self, event):
+        """
+
+        :param event:
+        :type event:
+        :return:
+        :rtype:
+        """
         print(event.src_path, event.event_type)
         logger.info(event.src_path + " " + event.event_type)
 
     def on_deleted(self, event):
+        """
+
+        :param event:
+        :type event:
+        :return:
+        :rtype:
+        """
         print(event.src_path, event.event_type)
         logger.info(event.src_path + " " + event.event_type)
 
     def on_moved(self, event):
+        """
+
+        :param event:
+        :type event:
+        :return:
+        :rtype:
+        """
         print(event.src_path, event.event_type)
         logger.info(event.src_path + " " + event.event_type)
 
@@ -169,12 +202,14 @@ def GET_IMAGE_INFO(FILE_TO_BE_IMPORTED: str):
 
 
 def generate_submission_form(IMG_INFO: pd.DataFrame,
-                             username: str,
+                             wkgroup_owner: str,
                              wkgroup: str,
                              filename: str,
                              PARENT_DIR: str) -> None:
     """
-    Function to create the submission form for omero import
+        Function to create the submission form for omero import
+        :param wkgroup_owner:
+        :type wkgroup_owner:
         :param IMG_INFO:Metadata to be inserted into excel spreadsheet
         :type IMG_INFO: pd.DataFrame
         :param username: Username of OMERO
@@ -188,7 +223,7 @@ def generate_submission_form(IMG_INFO: pd.DataFrame,
         :return: None
         :rtype:
     """
-    credentials = {"OMERO user:": username, "OMERO group:": wkgroup}
+    credentials = {"OMERO user:": wkgroup_owner, "OMERO group:": wkgroup}
     USER_INFO = pd.DataFrame.from_dict(credentials, orient="index")
     print(f"Crendentials is {USER_INFO}")
     print(USER_INFO)
@@ -264,39 +299,30 @@ def insert_import_status_to_db(DIR_SENT_TO_DROPBOX: str) -> None:
     conn.close()
 
 
-def main():
-    src_path = FROM
-    event_handler = MonitorFolder()
-    observer = Observer()
-    observer.schedule(event_handler, path=src_path, recursive=True)
-    logger.info("Monitoring started")
-    observer.start()
-    try:
-        while True:
-            time.sleep(1)
-
-    except KeyboardInterrupt:
-        observer.stop()
-        observer.join()
-        sys.exit()
-
-
 if __name__ == "__main__":
-    username = "chent"
-    wkgroup = "komp_eye"
-    submission_form = "OMERO_submission_form.xlsx"
 
-    FROM = "Z:/OMERO/KOMP/ImagesToBeImportedIntoOmero"
-    TO = "Y:/"
+    parser = argparse.ArgumentParser(description='My awesome script')
+    parser.add_argument(
+        "-c", "--conf", action="store", dest="conf_file",
+        help="Path to config file"
+    )
 
-    db_server = "rslims.jax.org"
-    db_username = "dba"
-    db_password = "rsdba"
-    db_name = "rslims"
+    args = parser.parse_args()
+    cfg = cfg.parse_config(path="config.yml")
 
-    """Setup logger"""
+    # Setup credentials for database
+    db_server = cfg['database']['host']
+    db_name = cfg['database']['name']
+    db_username = cfg['database']['user']
+    db_password = cfg['database']['password']
 
+    # Setup information for generating submission form
+    group_owner = cfg['app']['group_owner']
+    wkgroup = cfg['app']['wk_group']
+    submission_form_name = cfg['app']['submission_form_name']
+    Eyes = cfg['app']['Eye']
 
+    #Setup logger
     def createLogHandler(log_file):
         logger = logging.getLogger(__name__)
         FORMAT = "[%(asctime)s->%(filename)s->%(funcName)s():%(lineno)s]%(levelname)s: %(message)s"
@@ -308,27 +334,27 @@ if __name__ == "__main__":
         return logger
 
 
-    job_name = 'Images-Import-Scripts'
-    logging_dest = os.path.join(os.getcwd(), "logs")
+    job_name = 'transform_to_omero'
+    logging_dest = cfg['app']['log_path1']
     date = datetime.now().strftime("%B-%d-%Y")
-    logging_filename = logging_dest + "/" + f'{date}.log'
+    logging_filename = logging_dest + "/" + f'{job_name}-{date}.log'
     logger = createLogHandler(logging_filename)
     logger.info('Logger has been created')
 
-    Eyes = {
-        "OD": "Right eye",
-        "OS": "Left Eye",
-        "OU": "Both"
-    }
+    # Contruct the WatchDog to monitor the file system
+    src = r"\\jax.org\jax\phenotype\OMERO\KOMP\ImagesToBeImportedIntoOmero"
+    dest = r"\\jax.org\jax\omero-drop\dropbox"
+    event_handler = MonitorFolder()
+    observer = PollingObserver()
+    observer.schedule(event_handler, path=src, recursive=True)
+    logger.info("Monitoring started")
+    observer.start()
 
-    TEST = {
-        "fundus2": "Eye Morphology",
-        "path": "Gross Pathology",
-        "fundus": "ERG"
-    }
+    try:
+        while True:
+            time.sleep(1)
 
-    wk_group_name = {
-        "fundus2": "KOMP_eye",
-    }
-
-    main()
+    except KeyboardInterrupt:
+        observer.stop()
+        observer.join()
+        sys.exit()
