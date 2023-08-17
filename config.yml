@@ -8,6 +8,12 @@ user:
   username: chent
   password: Ql4nc,tzjzsblj!
 
+azure:
+   email: tianyu.chen@jax.org
+   access token: oakw5774hgrc5zfzmotwzx3ryettwqvwoftpfqxwanwhb2bsw4va
+   base_url: https://dev.azure.com/jacksonlaboratory
+   team: Teams\\Research\\KOMP
+
 app:
   log_path1: C:/Program Files/KOMP/SoftwareUtilities/exec_logs/import_to_omero_log
   log_path2: C:/Program Files/KOMP/SoftwareUtilities/exec_logs/import_to_jaxlims_log

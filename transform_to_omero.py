@@ -12,6 +12,7 @@ import pandas as pd
 import time
 import openpyxl
 import read_config as cfg
+import az_devops as az
 
 
 class MonitorFolder(FileSystemEventHandler):
@@ -320,7 +321,7 @@ if __name__ == "__main__":
     submission_form_name = cfg['app']['submission_form_name']
     Eyes = cfg['app']['Eye']
 
-    #Setup logger
+    # Setup logger
     def createLogHandler(log_file):
         logger = logging.getLogger(__name__)
         FORMAT = "[%(asctime)s->%(filename)s->%(funcName)s():%(lineno)s]%(levelname)s: %(message)s"

@@ -10,6 +10,7 @@ import time
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers.polling import PollingObserver
 import read_config as cfg
+import az_devops as az
 
 """
 1. Monitor the drop-box for log file, parse the log message if detected
@@ -19,9 +20,10 @@ import read_config as cfg
 3. Query the db for filename and testcode, use the filename to generate omero url
 4. Create a csv file using omero url and testcode
 
-TODO 08/09/2023
-1. Test the app in the production enviornment
-2. Figure out way to activate conda venv
+TODO 08/16/2023
+1. Write document for the app
+2. Finish database update function
+3. Explore infrastructure for error tracking & reporting
 """
 
 
@@ -77,6 +79,14 @@ class MonitorFolder(FileSystemEventHandler):
 
                 except Exception as err:
                     logger.error(err)
+                    status_code = az.create_work_item(personal_access_token=access_token,
+                                                      type="Bug",
+                                                      state="New",
+                                                      title=f"Errors detected in {job_name}",
+                                                      comment=str(e),
+                                                      assign_to=username,
+                                                      team=team)
+                    assert status_code == 200
 
     def on_modified(self, event):
         print(event.src_path, event.event_type)
@@ -191,22 +201,25 @@ class Imported_Images:
         for file in self.images:
             test_of_img = file.split("_")[0]
             logger.info(f"Fetching test for {test_of_img}")
-            if test_of_img == "fundus2":
-                type = self.TEST["fundus2"]
-                img_types.append(type)
-
-            if test_of_img == "fundus":
-                type = self.TEST["fundus"]
-                img_types.append(type)
-
-            if test_of_img == "path":
-                type = self.TEST["path"]
-                img_types.append(type)
+            assert test_of_img in self.TEST.keys()
+            type = self.TEST[test_of_img]
+            img_types.append(type)
 
         def all_same(items):
             return all(x == items[0] for x in items)
 
-        assert all_same(img_types)
+        try:
+            assert all_same(img_types)
+        except AssertionError as assertion_err:
+            error_message = str(assertion_err)
+            logger.error(error_message)
+            az.create_work_item(personal_access_token=access_token,
+                                type="Bug",
+                                state="New",
+                                title=f"Errors detected in {job_name} in function get_test_name()",
+                                comment=error_message,
+                                assign_to=username,
+                                team=team)
         logger.debug(img_types)
         return img_types[0]
 
@@ -259,9 +272,15 @@ if __name__ == "__main__":
     db_username = cfg['database']['user']
     db_password = cfg['database']['password']
 
-    #Setup credentials of omero
+    # Setup credentials of omero
     omero_username = cfg['user']['username']
     omero_password = cfg['user']['password']
+
+    # Setup credentials for Azure DevOps
+    access_token = cfg['azure']['access token']
+    az_username = cfg['azure']['email']
+    az_team = cfg['azure']['team']
+
 
     # Setup logger
     def createLogHandler(log_file):
@@ -281,7 +300,7 @@ if __name__ == "__main__":
     logger = createLogHandler(logging_filename)
     logger.info('Logger has been created')
 
-    #Create file watcher
+    # Create file watcher
     src_path = r"\\jax.org\jax\omero-drop\dropbox"
     # src_path = os.getcwd()
     event_handler = MonitorFolder()
@@ -298,4 +317,3 @@ if __name__ == "__main__":
         observer.stop()
         observer.join()
         sys.exit()
-
