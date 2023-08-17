@@ -58,16 +58,3 @@ def parse_config(path=None, data=None, tag='!ENV'):
         return yaml.load(data, Loader=loader)
     else:
         raise ValueError('Either a path or data should be defined as input')
-
-'''
-parser = argparse.ArgumentParser(description='My awesome script')
-parser.add_argument(
-    "-c", "--conf", action="store", dest="conf_file",
-    help="Path to config file"
-)
-
-args = parser.parse_args()
-config = parse_config(path="config.yml")
-
-print(config)
-'''

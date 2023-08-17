@@ -65,28 +65,19 @@ class MonitorFolder(FileSystemEventHandler):
                 csv_file_name = file_added.split("\\")[-1].replace(".", "-")
                 logger.info(csv_file_name)
                 try:
-                    if test_name == "Eye Morphology":
-                        target = r"\\jax.org\jax\phenotype\EYE-MORPHOLOGY\KOMP\images-omero"
-                        IMG_INFO.to_csv(f"{target}/{csv_file_name}.csv")
-
-                    if test_name == "Gross Pathology":
-                        target = r"\\jax.org\jax\phenotype\GrossPathology\KOMP\images-omero"
-                        IMG_INFO.to_csv(f"{target}/{csv_file_name}.csv")
-
-                    if test_name == "ERG":
-                        target = r"\\jax.org\jax\phenotype\ERG-V2\KOMP\images-omero"
-                        IMG_INFO.to_csv(f"{target}/{csv_file_name}.csv")
+                    target = dest[test_name]
+                    IMG_INFO.to_csv(f"{target}/{csv_file_name}.csv")
 
                 except Exception as err:
-                    logger.error(err)
-                    status_code = az.create_work_item(personal_access_token=access_token,
-                                                      type="Bug",
-                                                      state="New",
-                                                      title=f"Errors detected in {job_name}",
-                                                      comment=str(e),
-                                                      assign_to=username,
-                                                      team=team)
-                    assert status_code == 200
+                    error_message = str(err)
+                    logger.error(error_message)
+                    az.create_work_item(personal_access_token=access_token,
+                                        type="Bug",
+                                        state="New",
+                                        title=f"Errors detected in {job_name}",
+                                        comment=error_message,
+                                        assign_to=username,
+                                        team=team)
 
     def on_modified(self, event):
         print(event.src_path, event.event_type)
@@ -102,8 +93,6 @@ class MonitorFolder(FileSystemEventHandler):
 
 
 class Imported_Images:
-    TEST = cfg.parse_config("config.yml")['app']['TEST']
-    procedureDefVersionKey = cfg.parse_config("config.yml")['app']['procedureDefVersionKey']
 
     def __init__(self, images, status) -> None:
         self.images = images
@@ -176,9 +165,9 @@ class Imported_Images:
 
         for file in self.images:
             organism_id = file.split("_")[1]
-            test = self.TEST[file.split("_")[0]]
+            test = TEST[file.split("_")[0]]
             logger.debug(f"Test of image {file} is {test}")
-            procedureDefkey = self.procedureDefVersionKey[test]
+            procedureDefkey = procedureDefVersionKey[test]
             logger.debug(f"Procedure definition version key of {file} is {procedureDefkey}")
             logger.debug(f"Get metadata of image associated with animal {organism_id}")
             cursor.execute(stmt.format(procedureDefkey, organism_id))
@@ -201,8 +190,8 @@ class Imported_Images:
         for file in self.images:
             test_of_img = file.split("_")[0]
             logger.info(f"Fetching test for {test_of_img}")
-            assert test_of_img in self.TEST.keys()
-            type = self.TEST[test_of_img]
+            assert test_of_img in TEST.keys()
+            type = TEST[test_of_img]
             img_types.append(type)
 
         def all_same(items):
@@ -222,37 +211,6 @@ class Imported_Images:
                                 team=team)
         logger.debug(img_types)
         return img_types[0]
-
-
-def update_status(filename: str,
-                  status: str,
-                  message: str):
-    conn = mysql.connect(host=db_server, user=db_username, password=db_password, database="komp")
-
-    def if_exist():
-        conn = mysql.connect(host=db_server, user=db_username, password=db_password, database="komp")
-        query = f"""SELECT COUNT(1) AS COUNT FROM komp.OMEROImportStatus WHERE Filename = {filename};"""
-        c = conn.cursor(dictionary=True)
-        c.execute(query)
-        count = c.fetchall()["COUNT"]
-        if count > 0:
-            return 1
-        else:
-            return -1
-
-    if if_exist() == 1:
-        logger.info(f"{filename} is komp file")
-        logger.info("Inserting.......")
-        insert_stmt = f"""INSERT INTO komp.OMEROImportStatus (ImportStatus, Message) VALUES({status}, {message}) 
-                    WHERE Filename = {filename};"""
-        cursor = conn.cursor()
-        cursor.execute(insert_stmt)
-        conn.commit()
-        conn.close()
-
-    else:
-        logger.warning(f"{filename} is not a komp file")
-        return
 
 
 if __name__ == "__main__":
@@ -281,6 +239,10 @@ if __name__ == "__main__":
     az_username = cfg['azure']['email']
     az_team = cfg['azure']['team']
 
+    # Setup data for the app
+    dest = cfg['app']['dest']
+    TEST = cfg['app']['TEST']
+    procedureDefVersionKey = cfg['app']['procedureDefVersionKey']
 
     # Setup logger
     def createLogHandler(log_file):

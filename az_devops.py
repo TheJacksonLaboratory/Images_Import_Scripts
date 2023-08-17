@@ -5,7 +5,6 @@ import urllib
 import read_config as cfg
 import argparse
 
-# access_token = "oakw5774hgrc5zfzmotwzx3ryettwqvwoftpfqxwanwhb2bsw4va"
 parser = argparse.ArgumentParser(description='My awesome script')
 parser.add_argument(
     "-c", "--conf", action="store", dest="conf_file",
@@ -49,7 +48,7 @@ def create_work_item(personal_access_token,
                      state,
                      comment,
                      assign_to,
-                     team) -> int:
+                     team):
     authorization = requests.get('https://dev.azure.com', headers={'Authorization': personal_access_token})
     assert authorization.status_code == 200
 
@@ -97,10 +96,7 @@ def create_work_item(personal_access_token,
     }
 
     response = requests.request("POST", url, headers=headers, data=payload)
-    return response.status_code
+    assert response.status_code == 200
 
 
-'''
-path = "\\\\jax.org\jax\phenotype\EYE-MORPHOLOGY\KOMP\images-omero"
-print(fr'{path}')
-'''
+

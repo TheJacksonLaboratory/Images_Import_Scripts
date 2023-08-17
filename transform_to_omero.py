@@ -32,13 +32,35 @@ class MonitorFolder(FileSystemEventHandler):
         image_metadata = []
         time.sleep(10)
         if os.path.isdir(created_file):
-            IMG_INFO = GET_IMAGE_INFO(FILE_TO_BE_IMPORTED=created_file)
-            image_metadata.append(IMG_INFO)
-            generate_submission_form(IMG_INFO=IMG_INFO,
-                                     wkgroup_owner=group_owner,
-                                     wkgroup="KOMP_eye",
-                                     filename=created_file.split("/")[-1] + ".xlsx",
-                                     PARENT_DIR=created_file)
+            try:
+                IMG_INFO = GET_IMAGE_INFO(FILE_TO_BE_IMPORTED=created_file)
+                image_metadata.append(IMG_INFO)
+                generate_submission_form(IMG_INFO=IMG_INFO,
+                                         wkgroup_owner=group_owner,
+                                         wkgroup="KOMP_eye",
+                                         filename=created_file.split("/")[-1] + ".xlsx",
+                                         PARENT_DIR=created_file)
+            except IndexError as err1:
+                error_message = str(err1)
+                logger.error(error_message)
+                az.create_work_item(personal_access_token=access_token,
+                                    type="Bug",
+                                    state="New",
+                                    title=f"Errors detected in {job_name}",
+                                    comment=error_message,
+                                    assign_to=username,
+                                    team=team)
+
+            except pandas.errors as err2:
+                error_message = str(err2)
+                logger.error(error_message)
+                az.create_work_item(personal_access_token=access_token,
+                                    type="Bug",
+                                    state="New",
+                                    title=f"Errors detected in {job_name}",
+                                    comment=error_message,
+                                    assign_to=username,
+                                    team=team)
 
             def copyanything(src, dst) -> None:
                 """
@@ -61,9 +83,6 @@ class MonitorFolder(FileSystemEventHandler):
             logger.debug(f"Drop folder {created_file} to OMERO Dropbox {dest}")
             copyanything(src=created_file,
                          dst=dest + "\\" + created_file.split("/")[-1])
-
-            # send_message_on_slack()
-            # insert_import_status_to_db(DIR_SENT_TO_DROPBOX=created_file)
 
         else:
             pass
@@ -224,8 +243,6 @@ def generate_submission_form(IMG_INFO: pd.DataFrame,
     """
     credentials = {"OMERO user:": wkgroup_owner, "OMERO group:": wkgroup}
     USER_INFO = pd.DataFrame.from_dict(credentials, orient="index")
-    print(f"Crendentials is {USER_INFO}")
-    print(USER_INFO)
 
     logger.debug(f"Generating form {filename}")
     with pd.ExcelWriter(filename,
@@ -254,50 +271,6 @@ def generate_submission_form(IMG_INFO: pd.DataFrame,
     os.remove(filename)
 
 
-def insert_import_status_to_db(DIR_SENT_TO_DROPBOX: str) -> None:
-    """
-
-    Parameters
-    ----------
-    DIR_SENT_TO_DROPBOX :
-
-    Returns
-    -------
-
-    """
-    db_schema = "komp"
-    conn = mysql.connector.connect(host=db_server, user=db_username, password=db_password, database=db_schema)
-    files_sent = os.listdir(DIR_SENT_TO_DROPBOX)
-    for file in files_sent:
-        row = {}
-        if file.endswith(".xlsx"):
-            logger.info(f"Adding submission form {file} to record")
-            row["SubmissionFormName"] = file
-            continue
-
-        logger.info("Add date of import to record")
-        row["DateOfImport"] = datetime.now().strftime("%B-%d-%Y")
-        logger.info(f"Adding image {file} to record")
-        row["Filename"] = file
-
-        cursor = conn.cursor()
-        placeholders = ', '.join(['%s'] * len(row))
-        columns = ', '.join(row.keys())
-        stmt = "INSERT INTO komp.OMEROImportStatus (%s) VALUES (%s);" % (columns, placeholders)
-
-        try:
-            logger.info(f"Inserting {row} to the table")
-            cursor.execute(stmt, list(row.values()))
-
-        except mysql.connector.errors as e:
-            print(e)
-            logger.error(e)
-            # send_warning_message()
-
-    conn.commit()
-    conn.close()
-
-
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='My awesome script')
@@ -320,6 +293,12 @@ if __name__ == "__main__":
     wkgroup = cfg['app']['wk_group']
     submission_form_name = cfg['app']['submission_form_name']
     Eyes = cfg['app']['Eye']
+
+    # Setup credentials for Azure DevOps
+    access_token = cfg['azure']['access token']
+    az_username = cfg['azure']['email']
+    az_team = cfg['azure']['team']
+
 
     # Setup logger
     def createLogHandler(log_file):
