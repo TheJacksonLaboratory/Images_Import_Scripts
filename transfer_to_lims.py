@@ -20,10 +20,10 @@ import az_devops as az
 3. Query the db for filename and testcode, use the filename to generate omero url
 4. Create a csv file using omero url and testcode
 
-TODO 08/16/2023
+TODO 08/18/2023
 1. Write document for the app
-2. Finish database update function
-3. Explore infrastructure for error tracking & reporting
+2. Test the new commit on bhwin0236
+3. Reorganize config.yaml
 """
 
 
@@ -49,16 +49,15 @@ class MonitorFolder(FileSystemEventHandler):
                         filename = line_split[3] + " " + line_split[4] + " " + line_split[5]
                         success_imported_files.append(filename)
 
-                        '''
-                        update_status(filename=image.name,
-                                      status=image.status,
-                                      message=line)
-                        '''
-
                 imported_images = Imported_Images(images=success_imported_files, status="Success")
                 test_name = imported_images.get_test_name()
                 test_code = imported_images.get_test_code()
                 image_urls = imported_images.get_omero_urls()
+
+                assert test_code
+                assert test_name
+                assert image_urls
+                
                 IMG_INFO = pd.concat([image_urls, test_code], axis=1).rename_axis(None)
 
                 # Generate .csv file in the corresponding folder
@@ -76,8 +75,8 @@ class MonitorFolder(FileSystemEventHandler):
                                         state="New",
                                         title=f"Errors detected in {job_name}",
                                         comment=error_message,
-                                        assign_to=username,
-                                        team=team)
+                                        assign_to=az_username,
+                                        team=az_team)
 
     def on_modified(self, event):
         print(event.src_path, event.event_type)
@@ -240,7 +239,7 @@ if __name__ == "__main__":
     az_team = cfg['azure']['team']
 
     # Setup data for the app
-    dest = cfg['app']['dest']
+    dest = cfg['transfer_to_lims']['dest']
     TEST = cfg['app']['TEST']
     procedureDefVersionKey = cfg['app']['procedureDefVersionKey']
 

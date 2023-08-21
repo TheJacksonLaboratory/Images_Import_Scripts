@@ -289,10 +289,10 @@ if __name__ == "__main__":
     db_password = cfg['database']['password']
 
     # Setup information for generating submission form
-    group_owner = cfg['app']['group_owner']
-    wkgroup = cfg['app']['wk_group']
-    submission_form_name = cfg['app']['submission_form_name']
-    Eyes = cfg['app']['Eye']
+    group_owner = cfg['transfer_to_omero']['group_owner']
+    wkgroup = cfg['transfer_to_omero']['wk_group']
+    submission_form_name = cfg['transfer_to_omero']['submission_form_name']
+    Eyes = cfg['transfer_to_omero']['Eye']
 
     # Setup credentials for Azure DevOps
     access_token = cfg['azure']['access token']
@@ -313,7 +313,7 @@ if __name__ == "__main__":
 
 
     job_name = 'transform_to_omero'
-    logging_dest = cfg['app']['log_path1']
+    logging_dest = cfg['transfer_to_omero']['log_path']
     date = datetime.now().strftime("%B-%d-%Y")
     logging_filename = logging_dest + "/" + f'{job_name}-{date}.log'
     logger = createLogHandler(logging_filename)
