@@ -268,8 +268,8 @@ if __name__ == "__main__":
 
     # Setup data for the app
     dest = cfg['transfer_to_lims']['dest']
-    TEST = cfg['app']['TEST']
-    procedureDefVersionKey = cfg['app']['procedureDefVersionKey']
+    TEST = cfg['transfer_to_lims']['TEST']
+    procedureDefVersionKey = cfg['transfer_to_lims']['procedureDefVersionKey']
 
     # Setup logger
     def createLogHandler(log_file):
@@ -282,10 +282,10 @@ if __name__ == "__main__":
         return logger
 
 
-    job_name = 'Import_Images_To_Lims'
-     logging_dest = cfg['transfer_to_lims']['log_path']
+    job_name = 'transfer_to_lims'
+    logging_dest = cfg['transfer_to_lims']['log_path']
     date = datetime.now().strftime("%B-%d-%Y")
-    logging_filename = logging_dest + "/" + f'{date}.log'
+    logging_filename = logging_dest + "/" + f'{job_name}-{date}.log'
     logger = createLogHandler(logging_filename)
     logger.info('Logger has been created')
 
