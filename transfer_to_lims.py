@@ -268,8 +268,8 @@ if __name__ == "__main__":
 
     # Setup data for the app
     dest = cfg['transfer_to_lims']['dest']
-    TEST = cfg['app']['TEST']
-    procedureDefVersionKey = cfg['app']['procedureDefVersionKey']
+    TEST = cfg['transfer_to_lims']['TEST']
+    procedureDefVersionKey = cfg['transfer_to_lims']['procedureDefVersionKey']
 
     # Setup logger
     def createLogHandler(log_file):
