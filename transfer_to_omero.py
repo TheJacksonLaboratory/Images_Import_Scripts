@@ -103,6 +103,18 @@ class MonitorFolder(FileSystemEventHandler):
                                     team=az_team)
                 send_message_on_teams(Message=f"{error_message} at {job_name}")
 
+            except Exception as e:
+                error_message = str(e)
+                logger.error(error_message)
+                az.create_work_item(personal_access_token=access_token,
+                                    type="Bug",
+                                    state="New",
+                                    title=f"Errors detected in {job_name}",
+                                    comment=error_message,
+                                    assign_to=az_username,
+                                    team=az_team)
+                send_message_on_teams(Message=f"{error_message} at {job_name}")
+
         else:
             pass
 
@@ -254,8 +266,7 @@ class FolderToBeSent:
 
 
     def generate_submission_form(self,
-                                 IMG_INFO: pd.DataFrame,
-                                 PARENT_DIR: str) -> None:
+                                 IMG_INFO: pd.DataFrame) -> None:
         """
             Function to create the submission form for omero import
             :param wkgroup_owner:
@@ -299,13 +310,13 @@ class FolderToBeSent:
             except FileExistsError as e:
                 pass
 
-        send_to(file=filename, dest=PARENT_DIR)
+        send_to(file=filename, dest=self.directory)
         os.remove(filename)
 
     def copyanything(self) -> None:
         
         src = self.directory
-        dst = self.dest
+        dst=self.dest + "\\" + src.split("/")[-1]
         logger.info(f"Copying {src} to {dst}")
         try:
             shutil.copytree(src, dst)
