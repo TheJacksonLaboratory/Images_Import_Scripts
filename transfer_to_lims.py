@@ -89,7 +89,7 @@ class MonitorFolder(FileSystemEventHandler):
                                     team=az_team)
                 
             except pd.errors as err3:
-                error_message = str(err1)
+                error_message = str(err3)
                 logger.error(error_message)
                 az.create_work_item(personal_access_token=access_token,
                                     type="Bug",
@@ -283,7 +283,7 @@ if __name__ == "__main__":
 
 
     job_name = 'Import_Images_To_Lims'
-    logging_dest = cfg['app']['log_path2']
+     logging_dest = cfg['transfer_to_lims']['log_path']
     date = datetime.now().strftime("%B-%d-%Y")
     logging_filename = logging_dest + "/" + f'{date}.log'
     logger = createLogHandler(logging_filename)
