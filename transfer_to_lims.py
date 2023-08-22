@@ -7,6 +7,7 @@ import mysql.connector as mysql
 import pandas as pd
 import ezomero
 import time
+import pymsteams
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers.polling import PollingObserver
 import read_config as cfg
@@ -19,11 +20,6 @@ import az_devops as az
     -> If failed, send a message to slack channel and update import status to be "fail" and add log message to "message" column
 3. Query the db for filename and testcode, use the filename to generate omero url
 4. Create a csv file using omero url and testcode
-
-TODO 08/18/2023
-1. Write document for the app
-2. Test the new commit on bhwin0236
-3. Reorganize config.yaml
 """
 
 
@@ -32,51 +28,79 @@ class MonitorFolder(FileSystemEventHandler):
     def on_created(self, event):
         print(event.src_path, event.event_type)
         logger.info(event.src_path + " " + event.event_type)
-
         file_added = event.src_path
         logger.info(file_added)
 
         if file_added.endswith(".log"):
 
-            success_imported_files = []
+            try:
+                success_imported_files = []
 
-            # Parse the newly generated log file
-            with open(file_added, "r") as f:
-                lines = f.readlines()
-                for line in lines:
-                    if "Success" in line:
-                        line_split = line.split(" ")
-                        filename = line_split[3] + " " + line_split[4] + " " + line_split[5]
-                        success_imported_files.append(filename)
+                # Parse the newly generated log file
+                with open(file_added, "r") as f:
+                    lines = f.readlines()
+                    for line in lines:
+                        if "Success" in line:
+                            line_split = line.split(" ")
+                            filename = line_split[3] if line_split[3].endswith(".JPG") or line_split[3].endswith(".tif") else f"{line_split[3]} {line_split[4]} {line_split[5]}"
+                            logger.info(filename)
+                            success_imported_files.append(filename)
+                            send_message_on_teams(Message =f"{filename} successfully imported to OMERO")
 
-                imported_images = Imported_Images(images=success_imported_files, status="Success")
-                test_name = imported_images.get_test_name()
-                test_code = imported_images.get_test_code()
-                image_urls = imported_images.get_omero_urls()
 
-                assert test_code
-                assert test_name
-                assert image_urls
-                
-                IMG_INFO = pd.concat([image_urls, test_code], axis=1).rename_axis(None)
+                    imported_images = Imported_Images(images=success_imported_files, status="Success")
+                    test_name = imported_images.get_test_name()
+                    test_code = imported_images.get_test_code()
+                    image_urls = imported_images.get_omero_urls()
 
-                # Generate .csv file in the corresponding folder
-                csv_file_name = file_added.split("\\")[-1].replace(".", "-")
-                logger.info(csv_file_name)
-                try:
+                    
+                    assert test_name
+                    assert test_code.notnull()
+                    assert image_urls.notnull()
+
+                    # Generate .csv file in the corresponding folder
+                    IMG_INFO = pd.concat([image_urls, test_code], axis=1).rename_axis(None)
+                    csv_file_name = file_added.split("\\")[-1].replace(".", "-")
+                    logger.info(csv_file_name)
+                   
                     target = dest[test_name]
                     IMG_INFO.to_csv(f"{target}/{csv_file_name}.csv")
+                     
+            except AssertionError as err1:
+                error_message = str(err1)
+                logger.error(error_message)
+                az.create_work_item(personal_access_token=access_token,
+                                    type="Bug",
+                                    state="New",
+                                    title=f"Errors detected in {job_name}",
+                                    comment=error_message,
+                                    assign_to=az_username,
+                                    team=az_team)
 
-                except Exception as err:
-                    error_message = str(err)
-                    logger.error(error_message)
-                    az.create_work_item(personal_access_token=access_token,
-                                        type="Bug",
-                                        state="New",
-                                        title=f"Errors detected in {job_name}",
-                                        comment=error_message,
-                                        assign_to=az_username,
-                                        team=az_team)
+            except IndexError as err2:
+                error_message = str(err2)
+                logger.error(error_message)
+                az.create_work_item(personal_access_token=access_token,
+                                    type="Bug",
+                                    state="New",
+                                    title=f"Errors detected in {job_name}",
+                                    comment=error_message,
+                                    assign_to=az_username,
+                                    team=az_team)
+                
+            except pd.errors as err3:
+                error_message = str(err1)
+                logger.error(error_message)
+                az.create_work_item(personal_access_token=access_token,
+                                    type="Bug",
+                                    state="New",
+                                    title=f"Errors detected in {job_name}",
+                                    comment=error_message,
+                                    assign_to=az_username,
+                                    team=az_team)
+
+
+
 
     def on_modified(self, event):
         print(event.src_path, event.event_type)
@@ -122,8 +146,6 @@ class Imported_Images:
                                                            images_ids,
                                                            file,
                                                            True)
-
-                # logger.info(f"Image ids for {file} is {im_filter_ids}")
 
                 for image_id in im_filter_ids:
                     url = base_url + str(image_id)
@@ -206,10 +228,16 @@ class Imported_Images:
                                 state="New",
                                 title=f"Errors detected in {job_name} in function get_test_name()",
                                 comment=error_message,
-                                assign_to=username,
-                                team=team)
+                                assign_to=az_username,
+                                team=az_team)
         logger.debug(img_types)
         return img_types[0]
+
+
+def send_message_on_teams(Message: str) -> None:
+    myTeamsMessage = pymsteams.connectorcard("https://jacksonlaboratory.webhook.office.com/webhookb2/67b2b0a4-f061-41e9-accb-f334ca625680@5d665caa-d62e-4678-9f5f-e707cf9ecbd1/IncomingWebhook/db63504c727b4f68bb77bdb36d7c5c83/ab0e816b-f287-45e4-a845-7a4937f09c6d")
+    myTeamsMessage.text(Message)
+    myTeamsMessage.send()
 
 
 if __name__ == "__main__":
