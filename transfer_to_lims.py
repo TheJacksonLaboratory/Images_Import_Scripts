@@ -89,7 +89,7 @@ class MonitorFolder(FileSystemEventHandler):
                                     team=az_team)
                 
             except pd.errors as err3:
-                error_message = str(err1)
+                error_message = str(err3)
                 logger.error(error_message)
                 az.create_work_item(personal_access_token=access_token,
                                     type="Bug",
