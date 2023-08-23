@@ -18,14 +18,9 @@ import az_devops as az
 
 class MonitorFolder(FileSystemEventHandler):
 
+    #Function to handle newly created file in monitoring folder
     def on_created(self, event):
-        """
 
-        :param event:
-        :type event:
-        :return:
-        :rtype:
-        """
         print(event.src_path, event.event_type)
 
         created_file = event.src_path.replace("\\", "/")
@@ -34,6 +29,8 @@ class MonitorFolder(FileSystemEventHandler):
         time.sleep(10)
         if os.path.isdir(created_file):
             try:
+                #Strip the space in filename
+                [os.rename(created_file + "/" + f, created_file + "/" + f.replace(' ', '_')) for f in os.listdir(created_file)]
                 curr_processing_folder = FolderToBeSent(directory=created_file, 
                                                         wkgroup=wkgroup, 
                                                         wkgroup_owner=group_owner, 
@@ -44,29 +41,6 @@ class MonitorFolder(FileSystemEventHandler):
                 curr_processing_folder.generate_submission_form(IMG_INFO=IMG_INFO)
                 curr_processing_folder.copyanything()
                 
-                '''
-                def copyanything(src, dst) -> None:
-                    """
-                    Function to copy and paste a folder
-                    Parameters
-                    ----------
-                    src : Source folder
-                    dst : Location to place the copied and pasted folder
-
-                    Returns
-                    -------
-                    """
-                    logger.info(f"Copying {src} to {dst}")
-                    try:
-                        shutil.copytree(src, dst)
-                    except OSError as exc:
-                        if exc.errno in (errno.ENOTDIR, errno.EINVAL):
-                            shutil.copy(src, dst)
-
-                logger.debug(f"Drop folder {created_file} to OMERO Dropbox {dest}")
-                copyanything(src=created_file,
-                         dst=dest + "\\" + created_file.split("/")[-1])
-                '''
             except IndexError as err1:
                 error_message = str(err1)
                 logger.error(error_message)
@@ -116,38 +90,23 @@ class MonitorFolder(FileSystemEventHandler):
                 send_message_on_teams(Message=f"{error_message} at {job_name}")
 
         else:
-            pass
+            logger.warning(f"{created_file} is not a directory")
 
+    #Function to handle modified file in the monitoring folder
     def on_modified(self, event):
-        """
-
-        :param event:
-        :type event:
-        :return:
-        :rtype:
-        """
+    
         print(event.src_path, event.event_type)
         logger.info(event.src_path + " " + event.event_type)
 
+    #Function to handle deleted file in monitoring folder
     def on_deleted(self, event):
-        """
-
-        :param event:
-        :type event:
-        :return:
-        :rtype:
-        """
+       
         print(event.src_path, event.event_type)
         logger.info(event.src_path + " " + event.event_type)
 
+    #Function to handle file movement in monitoring folder
     def on_moved(self, event):
-        """
-
-        :param event:
-        :type event:
-        :return:
-        :rtype:
-        """
+        
         print(event.src_path, event.event_type)
         logger.info(event.src_path + " " + event.event_type)
 
@@ -167,15 +126,8 @@ class FolderToBeSent:
         self.submission_form_name = submission_form_name
         self.dest = dest
 
+    #Function to query data required to create submission form
     def get_image_info(self):
-        """
-        Function to get metadata of an image from database
-        :param: FILE_TO_BE_IMPORTED: Subfolders in the OMERO import folder,
-                i.e. //bht2stor.jax.org/phenotype/OMERO/KOMP/ImagesToBeImportedIntoOmero
-        :type FILE_TO_BE_IMPORTED: str
-        :return: Metadata of images
-        :rtype: pd.DataFrame
-        """
 
         logger.info("Connecting to database")
         conn = mysql.connector.connect(host=db_server, user=db_username, password=db_password, database=db_name)
@@ -213,7 +165,7 @@ class FolderToBeSent:
                             INNER JOIN
                         DateCompleteMap USING (_ProcedureInstance_key)
                     WHERE 
-                        ProcedureAlias = 'Eye Morphology'
+                        ProcedureAlias = '{}'
                     AND 
                         OrganismID = '{}';"""
 
@@ -223,8 +175,10 @@ class FolderToBeSent:
         files = os.listdir(self.directory)
         logger.info(f"Files pending processed are {files}")
         for f in files:
+
             logger.info(f"Process file {f}")
             FILE_NAMES.append(f)
+            test_of_image = TEST[f.split("_")[0]]
             organism_id = f.split("_")[1]
 
             def get_eye():
@@ -237,7 +191,7 @@ class FolderToBeSent:
             eye = get_eye()
             EYE_INFO.append(eye)
             logger.debug(f"Get metadata of image associated with animal {organism_id}")
-            cursor.execute(stmt.format(organism_id))
+            cursor.execute(stmt.format(test_of_image, organism_id))
             record = cursor.fetchall()
             if record:
 
@@ -252,10 +206,10 @@ class FolderToBeSent:
         cursor.close()
         conn.close()
 
+        #Aggragate all data gathered
         EYE_INFO = pd.DataFrame(EYE_INFO)
         IMG_METADTA = pd.DataFrame(DB_RECORDS)
         IMG_FILE_NAME = pd.DataFrame(FILE_NAMES, columns=["filename"])
-
         IMG_INFO = pd.concat([IMG_FILE_NAME, IMG_METADTA, EYE_INFO], axis=1)
         IMG_INFO = IMG_INFO.reset_index(drop=True)
 
@@ -265,25 +219,9 @@ class FolderToBeSent:
         return IMG_INFO
 
 
-    def generate_submission_form(self,
-                                 IMG_INFO: pd.DataFrame) -> None:
-        """
-            Function to create the submission form for omero import
-            :param wkgroup_owner:
-            :type wkgroup_owner:
-            :param IMG_INFO:Metadata to be inserted into excel spreadsheet
-            :type IMG_INFO: pd.DataFrame
-            :param username: Username of OMERO
-            :type username: String
-            :param wkgroup: Work group of OMERO
-            :type wkgroup: String
-            :param filename: Name of generated excel file
-            :type filename: String
-            :param PARENT_DIR: Directory to put the generated submission form
-            :type PARENT_DIR: String
-            :return: None
-            :rtype:
-        """
+    #Function to create omero submission form and send it to its corresponding directory
+    def generate_submission_form(self, IMG_INFO: pd.DataFrame) -> None:
+       
         credentials = {"OMERO user:": self.wkgroup_owner, "OMERO group:": self.wkgroup}
         USER_INFO = pd.DataFrame.from_dict(credentials, orient="index")
 
@@ -313,6 +251,7 @@ class FolderToBeSent:
         send_to(file=filename, dest=self.directory)
         os.remove(filename)
 
+    #Function to send image folder to omero dropbox
     def copyanything(self) -> None:
         
         src = self.directory
@@ -363,6 +302,8 @@ if __name__ == "__main__":
     az_username = cfg['azure']['email']
     az_team = cfg['azure']['team']
 
+    #Other stuff
+    TEST = cfg['transfer_to_omero']['TEST']
 
     # Setup logger
     def createLogHandler(log_file):

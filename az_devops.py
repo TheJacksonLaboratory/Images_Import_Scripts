@@ -28,6 +28,10 @@ def basic_auth():
 
 
 def get_work_item(personal_access_token):
+    """
+    Get a list of work items assigned to a person via REST services provided by Microsoft
+    :param str personal_access_token: Access token of you, for more info, see https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops&tabs=Windows
+    """
     authorization = requests.get('https://dev.azure.com', headers={'Authorization': personal_access_token})
     assert authorization.status_code == 200
 
@@ -50,6 +54,10 @@ def create_work_item(personal_access_token,
                      comment,
                      assign_to,
                      team):
+    """
+    Function to create a new work item on Azure DevOps board via RESTful API.
+    """
+
     authorization = requests.get('https://dev.azure.com', headers={'Authorization': personal_access_token})
     assert authorization.status_code == 200
 
