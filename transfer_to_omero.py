@@ -63,7 +63,7 @@ class MonitorFolder(FileSystemEventHandler):
                                     comment=error_message,
                                     assign_to=az_username,
                                     team=az_team)
-                send_message_on_teams(Message=f"{error_message} at {job_name}")
+                #send_message_on_teams(Message=f"{error_message} at {job_name}")
 
             except FileNotFoundError as err3:
                 error_message = str(err3)
@@ -75,7 +75,7 @@ class MonitorFolder(FileSystemEventHandler):
                                     comment=error_message,
                                     assign_to=az_username,
                                     team=az_team)
-                send_message_on_teams(Message=f"{error_message} at {job_name}")
+                #send_message_on_teams(Message=f"{error_message} at {job_name}")
 
             except Exception as e:
                 error_message = str(e)
@@ -87,7 +87,7 @@ class MonitorFolder(FileSystemEventHandler):
                                     comment=error_message,
                                     assign_to=az_username,
                                     team=az_team)
-                send_message_on_teams(Message=f"{error_message} at {job_name}")
+                #send_message_on_teams(Message=f"{error_message} at {job_name}")
 
         else:
             logger.warning(f"{created_file} is not a directory")
@@ -266,7 +266,7 @@ class FolderToBeSent:
        
 
 def send_message_on_teams(Message: str) -> None:
-    myTeamsMessage = pymsteams.connectorcard("https://jacksonlaboratory.webhook.office.com/webhookb2/67b2b0a4-f061-41e9-accb-f334ca625680@5d665caa-d62e-4678-9f5f-e707cf9ecbd1/IncomingWebhook/db63504c727b4f68bb77bdb36d7c5c83/ab0e816b-f287-45e4-a845-7a4937f09c6d")
+    myTeamsMessage = pymsteams.connectorcard("https://jacksonlaboratory.webhook.office.com/webhookb2/bd1ec35a-4544-41cd-a6aa-0f1b378d70a8@5d665caa-d62e-4678-9f5f-e707cf9ecbd1/IncomingWebhook/8e140d840e964c78987c792740a566d3/ab0e816b-f287-45e4-a845-7a4937f09c6d")
     myTeamsMessage.text(Message)
     myTeamsMessage.send()
 

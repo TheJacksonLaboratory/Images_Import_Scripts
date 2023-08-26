@@ -25,6 +25,7 @@ import az_devops as az
 
 class MonitorFolder(FileSystemEventHandler):
 
+    #Function to handle newly created file in monitoring folder
     def on_created(self, event):
         print(event.src_path, event.event_type)
         logger.info(event.src_path + " " + event.event_type)
@@ -98,18 +99,21 @@ class MonitorFolder(FileSystemEventHandler):
                                     comment=error_message,
                                     assign_to=az_username,
                                     team=az_team)
+            
 
 
 
-
+    #Function to handle file modification in monitoring folder
     def on_modified(self, event):
         print(event.src_path, event.event_type)
         logger.info(event.src_path + " " + event.event_type)
 
+    #Function to handle file delete in monitoring folder
     def on_deleted(self, event):
         print(event.src_path, event.event_type)
         logger.info(event.src_path + " " + event.event_type)
 
+    #Function to handle file movement in monitoring folder
     def on_moved(self, event):
         print(event.src_path, event.event_type)
         logger.info(event.src_path + " " + event.event_type)
@@ -121,9 +125,10 @@ class Imported_Images:
         self.images = images
         self.status = status
 
+
+    #Function to query omero urls
     def get_omero_urls(self) -> pd.DataFrame:
         """
-        Function to get omero urls
         :return: Metadata of images, e.g. testcode, animalid etc
         :rtype: pd.DataFrame
         """
@@ -157,6 +162,7 @@ class Imported_Images:
         IMG_URL = pd.DataFrame(urls, columns=["Filename"])
         return IMG_URL
 
+    #Function to query database for testcode
     def get_test_code(self) -> pd.DataFrame:
 
         """
@@ -208,34 +214,32 @@ class Imported_Images:
     def get_test_name(self) -> str:
 
         img_types = []
-        for file in self.images:
-            test_of_img = file.split("_")[0]
-            logger.info(f"Fetching test for {test_of_img}")
-            assert test_of_img in TEST.keys()
-            type = TEST[test_of_img]
-            img_types.append(type)
-
-        def all_same(items):
-            return all(x == items[0] for x in items)
-
         try:
-            assert all_same(img_types)
-        except AssertionError as assertion_err:
-            error_message = str(assertion_err)
-            logger.error(error_message)
-            az.create_work_item(personal_access_token=access_token,
-                                type="Bug",
-                                state="New",
-                                title=f"Errors detected in {job_name} in function get_test_name()",
-                                comment=error_message,
-                                assign_to=az_username,
-                                team=az_team)
+            for file in self.images:
+                test_of_img = file.split("_")[0]
+                logger.info(f"Fetching test for {test_of_img}")
+                #assert test_of_img in TEST.keys()
+                type = TEST[test_of_img]
+                img_types.append(type)
+                assert all(x == img_types[0] for x in img_types)
+
+        except (AssertionError, KeyError) as err:
+                error_message = str(err)
+                logger.error(error_message)
+                az.create_work_item(personal_access_token=access_token,
+                                    type="Bug",
+                                    state="New",
+                                    title=f"Errors detected in {job_name} in function get_test_name()",
+                                    comment=error_message,
+                                    assign_to=az_username,
+                                    team=az_team)
+                
         logger.debug(img_types)
         return img_types[0]
 
 
 def send_message_on_teams(Message: str) -> None:
-    myTeamsMessage = pymsteams.connectorcard("https://jacksonlaboratory.webhook.office.com/webhookb2/67b2b0a4-f061-41e9-accb-f334ca625680@5d665caa-d62e-4678-9f5f-e707cf9ecbd1/IncomingWebhook/db63504c727b4f68bb77bdb36d7c5c83/ab0e816b-f287-45e4-a845-7a4937f09c6d")
+    myTeamsMessage = pymsteams.connectorcard("https://jacksonlaboratory.webhook.office.com/webhookb2/bd1ec35a-4544-41cd-a6aa-0f1b378d70a8@5d665caa-d62e-4678-9f5f-e707cf9ecbd1/IncomingWebhook/8e140d840e964c78987c792740a566d3/ab0e816b-f287-45e4-a845-7a4937f09c6d")
     myTeamsMessage.text(Message)
     myTeamsMessage.send()
 
