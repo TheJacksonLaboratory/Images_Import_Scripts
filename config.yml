@@ -6,11 +6,11 @@ database:
 
 user:
   username: chent
-  password: Ql4nc,tzjzsblj!
+  password: Steve19981230
 
 azure:
    email: tianyu.chen@jax.org
-   access token: oakw5774hgrc5zfzmotwzx3ryettwqvwoftpfqxwanwhb2bsw4va
+   access token: lymulontolyct3ct5zn7zr5ubmkahcxzkumonczqoqhckrrbt4pa
    base_url: https://dev.azure.com/jacksonlaboratory
    team: Teams\\Research\\KOMP
 
@@ -20,12 +20,18 @@ transfer_to_omero:
     log_path: C:/Program Files/KOMP/SoftwareUtilities/exec_logs/import_to_omero_log
     submission_form_name: OMERO_submission_form.xlsx
     group_owner: whitej
-    wk_group: komp_eye
+    wk_group: KOMP_eye
 
     Eye:
       OD: "Right eye"
       OS: "Left Eye"
       OU: "Both"
+
+    TEST:
+      fundus2: Eye Morphology
+      path: Gross Pathology
+      fundus: ERG
+      Slit: Eye Morphology
 
 transfer_to_lims:
     log_path: C:/Program Files/KOMP/SoftwareUtilities/exec_logs/import_to_jaxlims_log

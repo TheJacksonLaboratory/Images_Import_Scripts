@@ -12,6 +12,8 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers.polling import PollingObserver
 import read_config as cfg
 import az_devops as az
+from logging.handlers import TimedRotatingFileHandler
+
 
 """
 1. Monitor the drop-box for log file, parse the log message if detected
@@ -25,38 +27,37 @@ import az_devops as az
 
 class MonitorFolder(FileSystemEventHandler):
 
+    #Function to handle newly created file in monitoring folder
     def on_created(self, event):
         print(event.src_path, event.event_type)
         logger.info(event.src_path + " " + event.event_type)
         file_added = event.src_path
         logger.info(file_added)
-
+        error_message = ""
         if file_added.endswith(".log"):
 
             try:
                 success_imported_files = []
 
                 # Parse the newly generated log file
-                with open(file_added, "r") as f:
+                with open(fr"{file_added}", "r") as f:
                     lines = f.readlines()
                     for line in lines:
-                        if "Success" in line:
+                        if "Target" in line:
+                            logger.info("Files has been moved to omero")
+                            continue
+
+                        elif "Success" in line:
                             line_split = line.split(" ")
                             filename = line_split[3] if line_split[3].endswith(".JPG") or line_split[3].endswith(".tif") else f"{line_split[3]} {line_split[4]} {line_split[5]}"
                             logger.info(filename)
                             success_imported_files.append(filename)
-                            send_message_on_teams(Message =f"{filename} successfully imported to OMERO")
-
-
+                            #send_message_on_teams(Message =f"{filename} successfully imported to OMERO")
+                        
                     imported_images = Imported_Images(images=success_imported_files, status="Success")
                     test_name = imported_images.get_test_name()
                     test_code = imported_images.get_test_code()
                     image_urls = imported_images.get_omero_urls()
-
-                    
-                    assert test_name
-                    assert test_code.notnull()
-                    assert image_urls.notnull()
 
                     # Generate .csv file in the corresponding folder
                     IMG_INFO = pd.concat([image_urls, test_code], axis=1).rename_axis(None)
@@ -66,50 +67,27 @@ class MonitorFolder(FileSystemEventHandler):
                     target = dest[test_name]
                     IMG_INFO.to_csv(f"{target}/{csv_file_name}.csv")
                      
-            except AssertionError as err1:
-                error_message = str(err1)
+            except Exception as err:
+                error_message = str(err)
                 logger.error(error_message)
-                az.create_work_item(personal_access_token=access_token,
-                                    type="Bug",
-                                    state="New",
-                                    title=f"Errors detected in {job_name}",
-                                    comment=error_message,
-                                    assign_to=az_username,
-                                    team=az_team)
-
-            except IndexError as err2:
-                error_message = str(err2)
-                logger.error(error_message)
-                az.create_work_item(personal_access_token=access_token,
-                                    type="Bug",
-                                    state="New",
-                                    title=f"Errors detected in {job_name}",
-                                    comment=error_message,
-                                    assign_to=az_username,
-                                    team=az_team)
                 
-            except pd.errors as err3:
-                error_message = str(err3)
-                logger.error(error_message)
-                az.create_work_item(personal_access_token=access_token,
-                                    type="Bug",
-                                    state="New",
-                                    title=f"Errors detected in {job_name}",
-                                    comment=error_message,
-                                    assign_to=az_username,
-                                    team=az_team)
+            finally:
+                if error_message:
+                    az.create_work_item(error_message)
+    
+            
 
-
-
-
+    #Function to handle file modification in monitoring folder
     def on_modified(self, event):
         print(event.src_path, event.event_type)
         logger.info(event.src_path + " " + event.event_type)
 
+    #Function to handle file delete in monitoring folder
     def on_deleted(self, event):
         print(event.src_path, event.event_type)
         logger.info(event.src_path + " " + event.event_type)
 
+    #Function to handle file movement in monitoring folder
     def on_moved(self, event):
         print(event.src_path, event.event_type)
         logger.info(event.src_path + " " + event.event_type)
@@ -121,9 +99,10 @@ class Imported_Images:
         self.images = images
         self.status = status
 
+
+    #Function to query omero urls
     def get_omero_urls(self) -> pd.DataFrame:
         """
-        Function to get omero urls
         :return: Metadata of images, e.g. testcode, animalid etc
         :rtype: pd.DataFrame
         """
@@ -157,6 +136,7 @@ class Imported_Images:
         IMG_URL = pd.DataFrame(urls, columns=["Filename"])
         return IMG_URL
 
+    #Function to query database for testcode
     def get_test_code(self) -> pd.DataFrame:
 
         """
@@ -208,34 +188,32 @@ class Imported_Images:
     def get_test_name(self) -> str:
 
         img_types = []
-        for file in self.images:
-            test_of_img = file.split("_")[0]
-            logger.info(f"Fetching test for {test_of_img}")
-            assert test_of_img in TEST.keys()
-            type = TEST[test_of_img]
-            img_types.append(type)
-
-        def all_same(items):
-            return all(x == items[0] for x in items)
-
         try:
-            assert all_same(img_types)
-        except AssertionError as assertion_err:
-            error_message = str(assertion_err)
-            logger.error(error_message)
-            az.create_work_item(personal_access_token=access_token,
-                                type="Bug",
-                                state="New",
-                                title=f"Errors detected in {job_name} in function get_test_name()",
-                                comment=error_message,
-                                assign_to=az_username,
-                                team=az_team)
+            for file in self.images:
+                test_of_img = file.split("_")[0]
+                logger.info(f"Fetching test for {test_of_img}")
+                #assert test_of_img in TEST.keys()
+                type = TEST[test_of_img]
+                img_types.append(type)
+                assert all(x == img_types[0] for x in img_types)
+
+        except (AssertionError, KeyError) as err:
+                error_message = str(err)
+                logger.error(error_message)
+                az.create_work_item(personal_access_token=access_token,
+                                    type="Bug",
+                                    state="New",
+                                    title=f"Errors detected in {job_name} in function get_test_name()",
+                                    comment=error_message,
+                                    assign_to=az_username,
+                                    team=az_team)
+                
         logger.debug(img_types)
         return img_types[0]
 
 
 def send_message_on_teams(Message: str) -> None:
-    myTeamsMessage = pymsteams.connectorcard("https://jacksonlaboratory.webhook.office.com/webhookb2/67b2b0a4-f061-41e9-accb-f334ca625680@5d665caa-d62e-4678-9f5f-e707cf9ecbd1/IncomingWebhook/db63504c727b4f68bb77bdb36d7c5c83/ab0e816b-f287-45e4-a845-7a4937f09c6d")
+    myTeamsMessage = pymsteams.connectorcard("https://jacksonlaboratory.webhook.office.com/webhookb2/bd1ec35a-4544-41cd-a6aa-0f1b378d70a8@5d665caa-d62e-4678-9f5f-e707cf9ecbd1/IncomingWebhook/8e140d840e964c78987c792740a566d3/ab0e816b-f287-45e4-a845-7a4937f09c6d")
     myTeamsMessage.text(Message)
     myTeamsMessage.send()
 
@@ -276,7 +254,7 @@ if __name__ == "__main__":
         logger = logging.getLogger(__name__)
         FORMAT = "[%(asctime)s->%(filename)s->%(funcName)s():%(lineno)s]%(levelname)s: %(message)s"
         logging.basicConfig(format=FORMAT, filemode="w", level=logging.DEBUG, force=True)
-        handler = logging.FileHandler(log_file)
+        handler =TimedRotatingFileHandler(log_file, when="midnight", backupCount=10)
         handler.setFormatter(logging.Formatter(FORMAT))
         logger.addHandler(handler)
         return logger
@@ -291,7 +269,7 @@ if __name__ == "__main__":
 
     # Create file watcher
     src_path = r"\\jax.org\jax\omero-drop\dropbox"
-    # src_path = os.getcwd()
+    #src_path = os.getcwd()
     event_handler = MonitorFolder()
     observer = PollingObserver()
     observer.schedule(event_handler, path=src_path, recursive=True)

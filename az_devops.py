@@ -28,6 +28,10 @@ def basic_auth():
 
 
 def get_work_item(personal_access_token):
+    """
+    Get a list of work items assigned to a person via REST services provided by Microsoft
+    :param str personal_access_token: Access token of you, for more info, see https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops&tabs=Windows
+    """
     authorization = requests.get('https://dev.azure.com', headers={'Authorization': personal_access_token})
     assert authorization.status_code == 200
 
@@ -43,53 +47,46 @@ def get_work_item(personal_access_token):
         print(e)
 
 
-def create_work_item(personal_access_token,
-                     type,
-                     title,
-                     state,
-                     comment,
-                     assign_to,
-                     team):
-    authorization = requests.get('https://dev.azure.com', headers={'Authorization': personal_access_token})
-    assert authorization.status_code == 200
-
-    url = f"https://dev.azure.com/jacksonlaboratory/teams/_apis/wit/workitems/${type}?api-version=7.0"
-    print(url)
-    payload = json.dumps([
-        {
-            "op": "add",
-            "path": "/fields/System.Title",
-            "from": None,
-            "value": title
-        },
-        {
-            "op": "add",
-            "path": "/fields/System.State",
-            "from": None,
-            "value": state
-        },
-        {
-            "op": "add",
-            "path": "/fields/System.History",
-            "from": None,
-            "value": comment
-        },
-        {
-            "op": "add",
-            "path": "/fields/System.AssignedTo",
-            "from": None,
-            "value": assign_to
-        },
-        {
-            "op": "add",
-            "path": "/fields/System.AreaPath",
-            "from": None,
-            "value": team
+#Function to create a new PBI on Azure DevOps board
+def create_work_item(message: str):
+    url = "https://dev.azure.com/jacksonlaboratory/teams/_apis/wit/workitems/$Bug?api-version=7.0"
+    payload = json.dumps(
+  [
+  {
+    "op": "add",
+    "path": "/fields/System.Title",
+    "from": None,
+    "value": "Errors detected in PCP data collecting"
+  },
+  {
+    "op": "add",
+    "path": "/fields/System.State",
+    "from": None,
+    "value": "New"
+  },
+  {
+    "op": "add",
+    "path": "/fields/System.History",
+    "from": None,
+    "value": message
+  },
+  {
+    "op": "add",
+    "path": "/fields/System.AssignedTo",
+    "from": None,
+    "value": username
+  },
+  {
+    "op": "add",
+    "path": "/fields/System.AreaPath",
+    "from": None,
+    "value": "Teams\\Research\\KOMP"
+  }
+]
+)
+    headers = {
+        'Content-Type': 'application/json-patch+json',
+        'Authorization': basic_auth(),
         }
-    ])
-    headers = {'Authorization': basic_auth()}
     response = requests.request("POST", url, headers=headers, data=payload)
-
-    assert response.status_code == 200
-
-
+    print(response.status_code)
