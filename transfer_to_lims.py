@@ -13,6 +13,8 @@ from watchdog.observers.polling import PollingObserver
 import read_config as cfg
 import az_devops as az
 from logging.handlers import TimedRotatingFileHandler
+import glob
+import shutil
 
 
 """
@@ -22,6 +24,10 @@ from logging.handlers import TimedRotatingFileHandler
     -> If failed, send a message to slack channel and update import status to be "fail" and add log message to "message" column
 3. Query the db for filename and testcode, use the filename to generate omero url
 4. Create a csv file using omero url and testcode
+
+TODO 10-13-2023
+
+Add remove folder functionality
 """
 
 
@@ -43,16 +49,12 @@ class MonitorFolder(FileSystemEventHandler):
                 with open(fr"{file_added}", "r") as f:
                     lines = f.readlines()
                     for line in lines:
-                        if "Target" in line:
-                            logger.info("Files has been moved to omero")
-                            continue
-
-                        elif "Success" in line:
+                        if "Success" in line:
                             line_split = line.split(" ")
                             filename = line_split[3] if line_split[3].endswith(".JPG") or line_split[3].endswith(".tif") else f"{line_split[3]} {line_split[4]} {line_split[5]}"
                             logger.info(filename)
                             success_imported_files.append(filename)
-                            #send_message_on_teams(Message =f"{filename} successfully imported to OMERO")
+                            send_message_on_teams(Message =f"{filename} successfully imported to OMERO")
                         
                     imported_images = Imported_Images(images=success_imported_files, status="Success")
                     test_name = imported_images.get_test_name()
@@ -66,6 +68,9 @@ class MonitorFolder(FileSystemEventHandler):
                    
                     target = dest[test_name]
                     IMG_INFO.to_csv(f"{target}/{csv_file_name}.csv")
+                    
+                    logger.info("Moving all successful files into archive . . .")
+                    imported_images.migrate_files()
                      
             except Exception as err:
                 error_message = str(err)
@@ -185,6 +190,7 @@ class Imported_Images:
 
         return TEST_CODE
 
+    #Function to get the test/experiment of the image
     def get_test_name(self) -> str:
 
         img_types = []
@@ -211,6 +217,22 @@ class Imported_Images:
         logger.debug(img_types)
         return img_types[0]
 
+    #Function to move succesfully imported files to archive folder
+    def migrate_files(self) -> None:
+        files = self.images
+
+        #Get locations of files to move 
+        files_to_move = []
+        for file in files:
+            pathname = r"\\jax.org\jax\phenotype\OMERO\KOMP\ImagesToBeImportedIntoOmero"
+            files_to_move.extend(glob.glob(pathname=pathname + "/**/" + file, recursive=True))
+            print(f"Files needs to move is {files_to_move}")
+            
+        #Move file to the archive folder
+        for f in files_to_move:
+            logger.info(f"Moving file {f}")
+            shutil.copy(f, archive)
+        
 
 def send_message_on_teams(Message: str) -> None:
     myTeamsMessage = pymsteams.connectorcard("https://jacksonlaboratory.webhook.office.com/webhookb2/bd1ec35a-4544-41cd-a6aa-0f1b378d70a8@5d665caa-d62e-4678-9f5f-e707cf9ecbd1/IncomingWebhook/8e140d840e964c78987c792740a566d3/ab0e816b-f287-45e4-a845-7a4937f09c6d")
@@ -218,9 +240,23 @@ def send_message_on_teams(Message: str) -> None:
     myTeamsMessage.send()
 
 
+def rm_dir() -> None:
+    pass
+
+ # Setup logger
+def createLogHandler(log_file):
+    logger = logging.getLogger(__name__)
+    FORMAT = "[%(asctime)s->%(filename)s->%(funcName)s():%(lineno)s]%(levelname)s: %(message)s"
+    logging.basicConfig(format=FORMAT, filemode="w", level=logging.DEBUG, force=True)
+    handler =TimedRotatingFileHandler(log_file, when="midnight", backupCount=10)
+    handler.setFormatter(logging.Formatter(FORMAT))
+    logger.addHandler(handler)
+    return logger
+    
+
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description='My awesome script')
+    parser = argparse.ArgumentParser(description='JaxLims Image Import')
     parser.add_argument(
         "-c", "--conf", action="store", dest="conf_file",
         help="Path to config file"
@@ -248,18 +284,9 @@ if __name__ == "__main__":
     dest = cfg['transfer_to_lims']['dest']
     TEST = cfg['transfer_to_lims']['TEST']
     procedureDefVersionKey = cfg['transfer_to_lims']['procedureDefVersionKey']
+    archive = cfg['transfer_to_lims']['archive']
 
-    # Setup logger
-    def createLogHandler(log_file):
-        logger = logging.getLogger(__name__)
-        FORMAT = "[%(asctime)s->%(filename)s->%(funcName)s():%(lineno)s]%(levelname)s: %(message)s"
-        logging.basicConfig(format=FORMAT, filemode="w", level=logging.DEBUG, force=True)
-        handler =TimedRotatingFileHandler(log_file, when="midnight", backupCount=10)
-        handler.setFormatter(logging.Formatter(FORMAT))
-        logger.addHandler(handler)
-        return logger
-
-
+    #Setup logger
     job_name = 'transfer_to_lims'
     logging_dest = cfg['transfer_to_lims']['log_path']
     date = datetime.now().strftime("%B-%d-%Y")

@@ -50,3 +50,5 @@ transfer_to_lims:
       Eye Morphology: \\jax.org\jax\phenotype\EYE-MORPHOLOGY\KOMP\images-omero
       Gross Pathology: \\jax.org\jax\phenotype\GrossPathology\KOMP\images-omero
       ERG: \\jax.org\jax\phenotype\ERG-V2\KOMP\images-omero
+
+    archive: \\jax.org\jax\phenotype\OMERO\KOMP\Archive
