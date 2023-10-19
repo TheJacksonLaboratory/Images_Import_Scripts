@@ -196,14 +196,6 @@ class FolderToBeSent:
             IMG_INFO.to_excel(writer, sheet_name='Submission Form', startrow=4, startcol=0, header=True, index=False)
 
         def send_to(file: str, dest: str) -> None:
-            """
-            :param file:
-            :type file:
-            :param dest:
-            :type dest:
-            :return:
-            :rtype:
-            """
             try:
                 logger.debug(f"Send {file} to {dest}")
                 shutil.copy(file, dest)
@@ -212,6 +204,14 @@ class FolderToBeSent:
                 pass
 
         send_to(file=filename, dest=self.directory)
+
+        #Send a copy to archive
+        try:
+            os.mkdir(archive + "\\" + self.directory.split("/")[-1])
+        except FileExistsError as e:
+            pass
+        
+        send_to(file=filename, dest=archive + "\\" + self.directory.split("/")[-1])
         os.remove(filename)
 
     #Function to send image folder to omero dropbox
@@ -259,6 +259,7 @@ if __name__ == "__main__":
     Eyes = cfg['transfer_to_omero']['Eye']
     src = cfg['transfer_to_omero']['src']
     dest = cfg['transfer_to_omero']['dest']
+    archive = cfg['archive']
 
     # Setup credentials for Azure DevOps
     access_token = cfg['azure']['access token']

@@ -14,6 +14,8 @@ azure:
    base_url: https://dev.azure.com/jacksonlaboratory
    team: Teams\\Research\\KOMP
 
+archive: \\jax.org\jax\phenotype\OMERO\KOMP\Archive
+
 transfer_to_omero:
     src: \\jax.org\jax\phenotype\OMERO\KOMP\ImagesToBeImportedIntoOmero
     dest: \\jax.org\jax\omero-drop\dropbox
@@ -50,5 +52,3 @@ transfer_to_lims:
       Eye Morphology: \\jax.org\jax\phenotype\EYE-MORPHOLOGY\KOMP\images-omero
       Gross Pathology: \\jax.org\jax\phenotype\GrossPathology\KOMP\images-omero
       ERG: \\jax.org\jax\phenotype\ERG-V2\KOMP\images-omero
-
-    archive: \\jax.org\jax\phenotype\OMERO\KOMP\Archive

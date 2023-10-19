@@ -15,6 +15,7 @@ import az_devops as az
 from logging.handlers import TimedRotatingFileHandler
 import glob
 import shutil
+import errno
 
 
 """
@@ -24,10 +25,6 @@ import shutil
     -> If failed, send a message to slack channel and update import status to be "fail" and add log message to "message" column
 3. Query the db for filename and testcode, use the filename to generate omero url
 4. Create a csv file using omero url and testcode
-
-TODO 10-13-2023
-
-Add remove folder functionality
 """
 
 
@@ -40,10 +37,12 @@ class MonitorFolder(FileSystemEventHandler):
         file_added = event.src_path
         logger.info(file_added)
         error_message = ""
+        time.sleep(10)
         if file_added.endswith(".log"):
 
             try:
                 success_imported_files = []
+                image_dir = file_added.split("\\")[-2]
 
                 # Parse the newly generated log file
                 with open(fr"{file_added}", "r") as f:
@@ -55,22 +54,28 @@ class MonitorFolder(FileSystemEventHandler):
                             logger.info(filename)
                             success_imported_files.append(filename)
                             send_message_on_teams(Message =f"{filename} successfully imported to OMERO")
-                        
-                    imported_images = Imported_Images(images=success_imported_files, status="Success")
-                    test_name = imported_images.get_test_name()
-                    test_code = imported_images.get_test_code()
-                    image_urls = imported_images.get_omero_urls()
-
-                    # Generate .csv file in the corresponding folder
-                    IMG_INFO = pd.concat([image_urls, test_code], axis=1).rename_axis(None)
-                    csv_file_name = file_added.split("\\")[-1].replace(".", "-")
-                    logger.info(csv_file_name)
-                   
-                    target = dest[test_name]
-                    IMG_INFO.to_csv(f"{target}/{csv_file_name}.csv")
                     
-                    logger.info("Moving all successful files into archive . . .")
-                    imported_images.migrate_files()
+                    if success_imported_files:
+                        imported_images = Imported_Images(images=success_imported_files, status="Success")
+                        test_name = imported_images.get_test_name()
+                        test_code = imported_images.get_test_code()
+                        image_urls = imported_images.get_omero_urls()
+
+                        # Generate .csv file in the corresponding folder
+                        IMG_INFO = pd.concat([image_urls, test_code], axis=1).rename_axis(None)
+                        csv_file_name = file_added.split("\\")[-1].replace(".", "-")
+                        #dir_to_move = file_added.split("\\")[-2]
+                        logger.info(csv_file_name)
+                    
+                        target = dest[test_name]
+                        IMG_INFO.to_csv(f"{target}/{csv_file_name}.csv")
+                        
+                        logger.info("Moving all successful files into archive . . .")
+                        imported_images.migrate_files(dest=image_dir)
+
+                        
+                    else:
+                        logger.info(f"No successful imported image found in file {f}")
                      
             except Exception as err:
                 error_message = str(err)
@@ -193,32 +198,25 @@ class Imported_Images:
     #Function to get the test/experiment of the image
     def get_test_name(self) -> str:
 
-        img_types = []
-        try:
-            for file in self.images:
-                test_of_img = file.split("_")[0]
-                logger.info(f"Fetching test for {test_of_img}")
-                #assert test_of_img in TEST.keys()
-                type = TEST[test_of_img]
-                img_types.append(type)
-                assert all(x == img_types[0] for x in img_types)
-
-        except (AssertionError, KeyError) as err:
-                error_message = str(err)
-                logger.error(error_message)
-                az.create_work_item(personal_access_token=access_token,
-                                    type="Bug",
-                                    state="New",
-                                    title=f"Errors detected in {job_name} in function get_test_name()",
-                                    comment=error_message,
-                                    assign_to=az_username,
-                                    team=az_team)
+        if not self.images:
+            return ''
+        img_types = []    
+        for file in self.images:
+            test_of_img = file.split("_")[0]
+            logger.info(f"Fetching test for {test_of_img}")
+            type = TEST[test_of_img]
+            img_types.append(type)
+            #assert all(x == img_types[0] for x in img_types)
                 
         logger.debug(img_types)
         return img_types[0]
 
     #Function to move succesfully imported files to archive folder
-    def migrate_files(self) -> None:
+    def migrate_files(self, dest) -> None:
+        if not os.path.exists(dest):
+            logger.info(f"Creating subfolder {dest} in archive")
+            os.mkdir(archive + "\\" + dest)
+
         files = self.images
 
         #Get locations of files to move 
@@ -231,7 +229,7 @@ class Imported_Images:
         #Move file to the archive folder
         for f in files_to_move:
             logger.info(f"Moving file {f}")
-            shutil.copy(f, archive)
+            shutil.copy(f, dest)
         
 
 def send_message_on_teams(Message: str) -> None:
@@ -239,9 +237,6 @@ def send_message_on_teams(Message: str) -> None:
     myTeamsMessage.text(Message)
     myTeamsMessage.send()
 
-
-def rm_dir() -> None:
-    pass
 
  # Setup logger
 def createLogHandler(log_file):
@@ -284,7 +279,8 @@ if __name__ == "__main__":
     dest = cfg['transfer_to_lims']['dest']
     TEST = cfg['transfer_to_lims']['TEST']
     procedureDefVersionKey = cfg['transfer_to_lims']['procedureDefVersionKey']
-    archive = cfg['transfer_to_lims']['archive']
+    archive = cfg['archive']
+
 
     #Setup logger
     job_name = 'transfer_to_lims'
