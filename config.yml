@@ -14,7 +14,7 @@ azure:
    base_url: https://dev.azure.com/jacksonlaboratory
    team: Teams\\Research\\KOMP
 
-archive: \\jax.org\jax\phenotype\OMERO\KOMP\Archive
+archive: \\jax.org\jax\phenotype\OMERO\KOMP\Archive\
 
 transfer_to_omero:
     src: \\jax.org\jax\phenotype\OMERO\KOMP\ImagesToBeImportedIntoOmero

@@ -14,6 +14,7 @@ import openpyxl
 import pymsteams
 import read_config as cfg
 import az_devops as az
+import re
 from logging.handlers import TimedRotatingFileHandler
 
 
@@ -237,6 +238,7 @@ def send_message_on_teams(Message: str) -> None:
 
 if __name__ == "__main__":
 
+    #Read config file
     parser = argparse.ArgumentParser(description='My awesome script')
     parser.add_argument(
         "-c", "--conf", action="store", dest="conf_file",
@@ -272,10 +274,13 @@ if __name__ == "__main__":
     # Setup logger
     def createLogHandler(log_file):
         logger = logging.getLogger(__name__)
+        date = datetime.now().strftime("%B-%d-%Y")
         FORMAT = "[%(asctime)s->%(filename)s->%(funcName)s():%(lineno)s]%(levelname)s: %(message)s"
         logging.basicConfig(format=FORMAT, filemode="w", level=logging.DEBUG, force=True)
-        handler =TimedRotatingFileHandler(log_file, when="midnight", backupCount=10)
+        handler =TimedRotatingFileHandler(f"{log_file}_{date}.log" , when="midnight", backupCount=10)
         handler.setFormatter(logging.Formatter(FORMAT))
+        handler.suffix = "%Y%m%d"
+        handler.extMatch = re.compile(r"^\d{8}$")
         logger.addHandler(handler)
 
         return logger
@@ -284,13 +289,11 @@ if __name__ == "__main__":
     job_name = 'transform_to_omero'
     logging_dest = cfg['transfer_to_omero']['log_path']
     date = datetime.now().strftime("%B-%d-%Y")
-    logging_filename = logging_dest + "/" + f'{job_name}-{date}.log'
+    logging_filename = logging_dest + "/" + f'{job_name}'
     logger = createLogHandler(logging_filename)
     logger.info('Logger has been created')
 
     # Contruct the WatchDog to monitor the file system
-    #src = r"\\jax.org\jax\phenotype\OMERO\KOMP\ImagesToBeImportedIntoOmero"
-    #dest = r"\\jax.org\jax\omero-drop\dropbox"
     event_handler = MonitorFolder()
     observer = PollingObserver()
     observer.schedule(event_handler, path=src, recursive=True)

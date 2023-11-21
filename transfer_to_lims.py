@@ -12,6 +12,7 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers.polling import PollingObserver
 import read_config as cfg
 import az_devops as az
+import re
 from logging.handlers import TimedRotatingFileHandler
 import glob
 import shutil
@@ -43,6 +44,7 @@ class MonitorFolder(FileSystemEventHandler):
             try:
                 success_imported_files = []
                 image_dir = file_added.split("\\")[-2]
+                logger.info(f"Folder in archive is {image_dir}")
 
                 # Parse the newly generated log file
                 with open(fr"{file_added}", "r") as f:
@@ -63,7 +65,7 @@ class MonitorFolder(FileSystemEventHandler):
 
                         # Generate .csv file in the corresponding folder
                         IMG_INFO = pd.concat([image_urls, test_code], axis=1).rename_axis(None)
-                        csv_file_name = file_added.split("\\")[-1].replace(".", "-")
+                        csv_file_name = file_added.split("\\")[-2].replace(".", "-")
                         #dir_to_move = file_added.split("\\")[-2]
                         logger.info(csv_file_name)
                     
@@ -71,7 +73,7 @@ class MonitorFolder(FileSystemEventHandler):
                         IMG_INFO.to_csv(f"{target}/{csv_file_name}.csv")
                         
                         logger.info("Moving all successful files into archive . . .")
-                        imported_images.migrate_files(dest=image_dir)
+                        imported_images.migrate_files(dest=archive + image_dir)
 
                         
                     else:
@@ -213,10 +215,7 @@ class Imported_Images:
 
     #Function to move succesfully imported files to archive folder
     def migrate_files(self, dest) -> None:
-        if not os.path.exists(dest):
-            logger.info(f"Creating subfolder {dest} in archive")
-            os.mkdir(archive + "\\" + dest)
-
+        
         files = self.images
 
         #Get locations of files to move 
@@ -224,11 +223,11 @@ class Imported_Images:
         for file in files:
             pathname = r"\\jax.org\jax\phenotype\OMERO\KOMP\ImagesToBeImportedIntoOmero"
             files_to_move.extend(glob.glob(pathname=pathname + "/**/" + file, recursive=True))
-            print(f"Files needs to move is {files_to_move}")
+            logger.info(f"Files needs to move is {file}")
             
         #Move file to the archive folder
         for f in files_to_move:
-            logger.info(f"Moving file {f}")
+            logger.info(f"Moving file {f} to {dest}")
             shutil.copy(f, dest)
         
 
@@ -240,12 +239,15 @@ def send_message_on_teams(Message: str) -> None:
 
  # Setup logger
 def createLogHandler(log_file):
+    date = datetime.now().strftime("%B-%d-%Y")
     logger = logging.getLogger(__name__)
     FORMAT = "[%(asctime)s->%(filename)s->%(funcName)s():%(lineno)s]%(levelname)s: %(message)s"
     logging.basicConfig(format=FORMAT, filemode="w", level=logging.DEBUG, force=True)
-    handler =TimedRotatingFileHandler(log_file, when="midnight", backupCount=10)
+    handler =TimedRotatingFileHandler(f"{log_file}-{date}.log", when="midnight", backupCount=10)
     handler.setFormatter(logging.Formatter(FORMAT))
     logger.addHandler(handler)
+    handler.suffix = "%Y%m%d"
+    handler.extMatch = re.compile(r"^\d{8}$")
     return logger
     
 
@@ -285,8 +287,7 @@ if __name__ == "__main__":
     #Setup logger
     job_name = 'transfer_to_lims'
     logging_dest = cfg['transfer_to_lims']['log_path']
-    date = datetime.now().strftime("%B-%d-%Y")
-    logging_filename = logging_dest + "/" + f'{job_name}-{date}.log'
+    logging_filename = logging_dest + "/" + f'{job_name}'
     logger = createLogHandler(logging_filename)
     logger.info('Logger has been created')
 
