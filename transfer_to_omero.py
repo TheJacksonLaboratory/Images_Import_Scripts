@@ -39,9 +39,13 @@ class MonitorFolder(FileSystemEventHandler):
                                                         wkgroup_owner=group_owner, 
                                                         submission_form_name=submission_form_name,
                                                         dest = dest)
+                
+                #Create submission file and send it to the corresponding folder
                 IMG_INFO = curr_processing_folder.get_image_info()
                 image_metadata.append(IMG_INFO)
                 curr_processing_folder.generate_submission_form(IMG_INFO=IMG_INFO)
+
+                #Send folder to dropbox
                 curr_processing_folder.copyanything()
                 
             except Exception as err:

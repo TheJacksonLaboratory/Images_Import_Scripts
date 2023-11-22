@@ -5,12 +5,12 @@ database:
  host: rslims.jax.org
 
 user:
-  username: chent
-  password: Steve19981230
+  username: your_omero_username
+  password: your_omero_password
 
 azure:
-   email: tianyu.chen@jax.org
-   access token: lymulontolyct3ct5zn7zr5ubmkahcxzkumonczqoqhckrrbt4pa
+   email: first.last@jax.org
+   access token: yourPAT
    base_url: https://dev.azure.com/jacksonlaboratory
    team: Teams\\Research\\KOMP
 
