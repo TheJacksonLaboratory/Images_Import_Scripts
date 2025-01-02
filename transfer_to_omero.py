@@ -145,6 +145,15 @@ class FolderToBeSent:
         for f in files:
 
             logger.info(f"Process file {f}")
+            """
+            if 'Thumbs' in f.name:  # Unfortunately it appears often
+                logger.info(f"Skipping " + f.name)
+                continue
+            """
+            if 'Thumbs' in f :  # Unfortunately it appears often
+                logger.info(f"Skipping " + f)
+                continue
+                
             FILE_NAMES.append(f)
             test_of_image = TEST[f.split("_")[0]]
             organism_id = f.split("_")[1]
