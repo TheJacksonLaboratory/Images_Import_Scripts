@@ -8,6 +8,7 @@ from datetime import datetime
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers.polling import PollingObserver
 import mysql.connector
+from mysql.connector.cursor import MySQLCursorDict
 import pandas as pd
 import time
 import openpyxl
@@ -23,10 +24,8 @@ class MonitorFolder(FileSystemEventHandler):
     #Function to handle newly created file in monitoring folder
     def on_created(self, event):
 
-        print(event.src_path, event.event_type)
-
-        created_file = event.src_path.replace("\\", "/")
-        logger.info(created_file + " " + event.event_type)
+        created_file = str(event.src_path)
+        created_file = created_file.replace('\\', '/')  # Why?
         error_message = ""
         image_metadata = []
         time.sleep(10)
@@ -53,30 +52,25 @@ class MonitorFolder(FileSystemEventHandler):
                 logger.error(error_message)
 
             finally:
-                if error_message:
-                    az.create_work_item(message=error_message)
-                    send_message_on_teams(Message=f"{error_message} at {job_name}")
+                print("Call to Azure happens here")
+                #if error_message:
+                #    az.create_work_item(message=error_message)
+                #    #send_message_on_teams(Message=f"{error_message} at {job_name}")
 
         else:
-            logger.warning(f"{created_file} is not a directory")
+            logger.warning(f"Since {created_file} is not a directory, we are skipping any processing.")
 
     #Function to handle modified file in the monitoring folder
     def on_modified(self, event):
-    
-        print(event.src_path, event.event_type)
-        logger.info(event.src_path + " " + event.event_type)
+        logger.info(str(event.src_path) + " " + event.event_type)
 
     #Function to handle deleted file in monitoring folder
     def on_deleted(self, event):
-       
-        print(event.src_path, event.event_type)
-        logger.info(event.src_path + " " + event.event_type)
+        logger.info(str(event.src_path) + " " + event.event_type)
 
     #Function to handle file movement in monitoring folder
     def on_moved(self, event):
-        
-        print(event.src_path, event.event_type)
-        logger.info(event.src_path + " " + event.event_type)
+        logger.info(str(event.src_path) + " " + event.event_type)
 
 
 class FolderToBeSent:
@@ -93,13 +87,13 @@ class FolderToBeSent:
         self.wkgroup = wkgroup
         self.submission_form_name = submission_form_name
         self.dest = dest
-
+        
     #Function to query data required to create submission form
     def get_image_info(self):
 
         logger.info("Connecting to database")
         conn = mysql.connector.connect(host=db_server, user=db_username, password=db_password, database=db_name)
-        cursor = conn.cursor(buffered=True, dictionary=True)
+        cursor = conn.cursor(buffered=True,cursor_class=MySQLCursorDict)
         cursor.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED")
         stmt = """SELECT
                         'KOMP' as 'Project',  -- Project
@@ -143,17 +137,15 @@ class FolderToBeSent:
         files = os.listdir(self.directory)
         logger.info(f"Files pending processed are {files}")
         for f in files:
-
             logger.info(f"Process file {f}")
-            """
-            if 'Thumbs' in f.name:  # Unfortunately it appears often
-                logger.info(f"Skipping " + f.name)
-                continue
-            """
             if 'Thumbs' in f :  # Unfortunately it appears often
                 logger.info(f"Skipping " + f)
                 continue
                 
+            #FILE_NAMES.append(f)
+            if f.split("_")[0] not in TEST.keys():
+                logger.error(f"Test {f.split('_')[0]} is not in the list of tests")
+                continue    
             FILE_NAMES.append(f)
             test_of_image = TEST[f.split("_")[0]]
             organism_id = f.split("_")[1]
@@ -221,22 +213,24 @@ class FolderToBeSent:
 
         #Send a copy to archive
         try:
-            os.mkdir(archive + "\\" + self.directory.split("/")[-1])
+            os.mkdir(archive + "\\" + self.directory.split("/")[-1]) # ARCHIVE  I think that it needs to split based on backslash            
         except FileExistsError as e:
             pass
-        
-        send_to(file=filename, dest=archive + "\\" + self.directory.split("/")[-1])
-        os.remove(filename)
+
+        send_to(file=filename, dest=archive + self.directory.split("/")[-1]) # ARCHIVE  I think that it needs to split based on backslash
+        #os.remove(filename)
 
     #Function to send image folder to omero dropbox
     def copyanything(self) -> None:
         
         src = self.directory
-        dst=self.dest + "\\" + src.split("/")[-1]
+        dst = self.dest + "\\" + src.split("/")[-1]  # OMERO droobox
+
         logger.info(f"Copying {src} to {dst}")
         try:
-            shutil.copytree(src, dst)
+            shutil.copytree(src, dst,dirs_exist_ok=True)
         except OSError as exc:
+            logger.info(repr(exc))
             if exc.errno in (errno.ENOTDIR, errno.EINVAL):
                 shutil.copy(src, dst)
 
